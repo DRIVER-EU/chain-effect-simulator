@@ -1,0 +1,17 @@
+{
+  "clientId": "chain-effect-sim",
+  "kafkaHost": "localhost:3501",
+  "schemaRegistry": "http://localhost:3502",
+  "wrapUnions": "auto",
+  "heartbeatInterval": 10000,
+  "fetchAllSchemas": false,
+  "fetchAllVersions": false,
+  "autoRegisterSchemas": true,
+  "schemaFolder": "./data/schemas",
+  "consume": [{
+          "topic": "chain_flood",
+          "offset": 99999
+      }
+  ],
+  "produce": ["chain_flood"]
+}

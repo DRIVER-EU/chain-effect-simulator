@@ -1,0 +1,44 @@
+{
+  "name": "chain-effect-simulator",
+  "version": "0.0.1",
+  "description": "chain-effect-simulator",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc && yarn copy-config && yarn copy-schemas",
+    "copy-config": "cpx -u \"config/*.json\" dist/config",
+    "copy-schemas": "cpx -u \"data/**/*.{avsc,asc}\" ./dist/data",
+    "dev": "tsc -w",
+    "start": "node dist/main.js"
+  },
+  "author": {
+    "name": "Rinze Bruining",
+    "email": "Rinze.Bruining@tno.nl"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/driver-eu/csCOP"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@types/geojson": "^7946.0.4",
+    "chokidar": "^2.0.4",
+    "compression": "^1.7.3",
+    "cors": "^2.8.4",
+    "dotenv": "^6.0.0",
+    "express": "^4.16.3",
+    "moment": "^2.22.2",
+    "node-test-bed-adapter": "^0.4.5",
+    "underscore": "^1.9.1",
+    "util": "^0.11.0",
+    "winston": "^2.4.4"
+  },
+  "devDependencies": {
+    "@types/kafka-node": "^2.0.7",
+    "@types/node": "^10.7.1",
+    "cpx": "^1.5.0"
+  },
+  "bugs": {
+    "url": "https://github.com/TNOCS/csWeb/issues"
+  },
+  "homepage": "https://github.com/TNOCS/csWeb"
+}
