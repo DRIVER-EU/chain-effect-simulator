@@ -4,14 +4,23 @@
   "schemaRegistry": "http://localhost:3502",
   "wrapUnions": "auto",
   "heartbeatInterval": 10000,
+  "fromOffset": true,
   "fetchAllSchemas": false,
   "fetchAllVersions": false,
-  "autoRegisterSchemas": true,
+  "autoRegisterSchemas": false,
   "schemaFolder": "./data/schemas",
   "consume": [{
-          "topic": "chain_flood",
-          "offset": 99999
-      }
-  ],
-  "produce": ["chain_flood"]
+    "topic": "chain_scenario",
+    "offset": -1
+  }, {
+    "topic": "chain_flood",
+    "offset": -1
+  }, {
+    "topic": "chain_power",
+    "offset": -1
+  }, {
+    "topic": "chain_waterheight",
+    "offset": -1
+  }],
+  "produce": ["chain_scenario", "chain_flood", "chain_power", "chain_waterheight"]
 }

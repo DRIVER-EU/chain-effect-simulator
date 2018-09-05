@@ -2,7 +2,7 @@
   "type": "record",
   "name": "asciilayer",
   "namespace": "eu.driver.model.geo",
-  "doc": "Grid layer in ascii grid format",
+  "doc": "Power layer in string format",
   "fields": [{
       "name": "id",
       "type": "string",
@@ -17,7 +17,7 @@
     {
       "name": "data",
       "type": "string",
-      "doc": "The flooding data"
+      "doc": "The power data"
     }
   ]
 }

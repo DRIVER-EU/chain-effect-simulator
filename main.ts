@@ -1,14 +1,21 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import Winston = require('winston');
 import * as fs from 'fs';
 import {Consumer} from './src/test-bed/consumer';
 import {Producer} from './src/test-bed/producer';
-import {NAPConverter} from './src/converter/NAPConverter';
+import {NAPConverter} from './src/simulators/NAPConverter/NAPConverter';
 import {ITestBedOptions, LogLevel, IAdapterMessage, Logger} from 'node-test-bed-adapter';
 import {IFloodDataMessage} from './src/models/Interfaces';
 import * as StaticTestBedConfig from './config/config.json';
-
+import {ElectricitySim} from './src/simulators/ElectricitySim/ElectricitySim';
+import {Simulator} from './src/simulators/Simulator';
+import {IChainScenario} from './src/models/schemas';
+import {FloodSim} from './src/simulators/FloodSim/FloodSim';
+import {ConsumerProducer} from './src/test-bed/consumerproducer';
 const log = Logger.instance;
 
+// INIT LOGGER
 Winston.remove(Winston.transports.Console);
 Winston.add(Winston.transports.Console, <Winston.ConsoleTransportOptions>{
   colorize: true,
@@ -16,6 +23,7 @@ Winston.add(Winston.transports.Console, <Winston.ConsoleTransportOptions>{
   prettyPrint: true
 });
 
+// READ (TEST-BED) CONFIGURATION FILE
 var DynamicTestBedConfig;
 if (fs.existsSync('./config/dynamic-config.json')) {
   let configText = fs.readFileSync('./config/dynamic-config.json', {encoding: 'utf8'});
@@ -24,7 +32,6 @@ if (fs.existsSync('./config/dynamic-config.json')) {
 }
 const TestBedConfig = DynamicTestBedConfig || StaticTestBedConfig;
 
-// const host = process.env.CHAINEFFECTSIM_SERVER || 'http://localhost';
 var testBedOptions: ITestBedOptions = <any>TestBedConfig;
 testBedOptions.logging = {
   logToConsole: LogLevel.Info,
@@ -33,39 +40,24 @@ testBedOptions.logging = {
   logFile: 'log.txt'
 };
 
-const FLOOD_TOPIC = 'chain_flood';
+const registerSims = () => {
+  testBedOptions.autoRegisterSchemas = false;
+  const clone = o => JSON.parse(JSON.stringify(o));
 
-const napConverter = new NAPConverter();
+  // REGISTER SIMULATORS
+  const napConverter = new NAPConverter(clone(testBedOptions));
+  const electricitySim = new ElectricitySim(clone(testBedOptions));
+  const simulators: Simulator[] = [napConverter, electricitySim];
 
-const consumer = new Consumer(testBedOptions);
-const convertNAP = (msg: IAdapterMessage) => {
-  log.info(`${JSON.stringify(msg).substr(0, 500)}`);
-  const value = msg.value as IFloodDataMessage;
-  napConverter.convertLayer(value, result => {
-    log.info(`Converted ${value.id}`);
-    log.info(`Result ${JSON.stringify(result).substr(0, 500)}`);
-  });
-};
-consumer.addHandler(FLOOD_TOPIC, convertNAP);
-
-const producer = new Producer(testBedOptions, () => {
-  sendDemoData();
-});
-
-const sendDemoData = () => {
-  const demoFile0 = './data/demo/waterlevel_0min_40x40m.asc';
-  const demoFile1 = './data/demo/waterlevel_60min_40x40m.asc';
-  setTimeout(() => sendFile(demoFile0, 0), 2000);
-  setTimeout(() => sendFile(demoFile1, 60 * 60 * 1000), 4000);
+  // REGISTER PRODUCER
+  const floodSim = new FloodSim(clone(testBedOptions));
+  floodSim.setFiles(['./data/demo/waterlevel_0min_40x40m.asc', './data/demo/waterlevel_60min_40x40m.asc']);
+  floodSim.setInterval(60 * 60 * 1000);
+  setTimeout(() => {
+    floodSim.publishFlood();
+  }, 3000);
+  temp.stop();
 };
 
-const sendFile = (demoFile: string, timestamp: number) => {
-  if (fs.existsSync(demoFile)) {
-    const demoData = fs.readFileSync(demoFile, {encoding: 'utf8'});
-    const demoMsg: IFloodDataMessage = {id: 'demo', timestamp: timestamp, data: demoData};
-    producer.sendData(FLOOD_TOPIC, demoMsg);
-    log.info(`Sent demo data ${timestamp} on topic ${FLOOD_TOPIC}`);
-  } else {
-    log.info(`demoFile ${demoFile} not found`);
-  }
-};
+testBedOptions.autoRegisterSchemas = true;
+var temp = new ConsumerProducer(testBedOptions, registerSims);

@@ -15,3 +15,14 @@ export interface IFloodDataMessage {
   timestamp: number;
   data: string;
 }
+
+export interface IFloodDataMessage {
+  id: string;
+  timestamp: number;
+  data: string;
+}
+
+export interface IChainUpdate {
+  count: number;
+  finished: boolean;
+}

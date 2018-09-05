@@ -1,32 +1,103 @@
-import path = require('path');
+import {IChainScenario, SimStatus} from '../../models/schemas';
+import dotenv from 'dotenv';
+dotenv.config();
 import Winston = require('winston');
-import util = require('util');
 import Conrec = require('./conrec');
 import _ = require('underscore');
 import {FeatureCollection, Feature, Polygon} from 'geojson';
-import {Dictionary} from '../test-bed/consumer';
-import {IIsoGrid, IFeatureCollectionDescription, IFloodDataMessage} from '../models/Interfaces';
-import {Logger} from 'node-test-bed-adapter';
-require('dotenv').load({path: './.env'});
+import {Dictionary} from '../../test-bed/consumer';
+import {IIsoGrid, IFeatureCollectionDescription, IFloodDataMessage, IChainUpdate} from '../../models/Interfaces';
+import {Logger, IAdapterMessage, ITestBedOptions} from 'node-test-bed-adapter';
+import {Simulator} from '../Simulator';
+import {FloodSim} from '../FloodSim/FloodSim';
 
 const log = Logger.instance;
+
+const FLOOD_TOPIC = process.env.FLOOD_TOPIC || 'chain_flood';
+const WATERHEIGHT_TOPIC = process.env.WATERHEIGHT_TOPIC || 'chain_waterheight';
+
+const dependentSims = [FloodSim.id];
+
 /**
  * NAPConverter.
  *
  * It listens to the chain_flood topic. Grid data that is published with absolute water levels, will be converted to relative water height.
  * The first grid should have timestamp 0, as it will be used as reference value for converting absolute to relative levels.
  */
-export class NAPConverter {
+export class NAPConverter extends Simulator {
+  static readonly id = 'NAPConverter';
   private gridParams: any = {};
   private baseGrid: {[id: string]: number[][]} = {};
+  private receivedUpdateCount: Dictionary<IChainUpdate> = {};
+  private sentUpdateCount: Dictionary<IChainUpdate> = {};
+  private inputLayers: Dictionary<IFloodDataMessage[]> = {};
+
   private header = '';
 
-  constructor() {}
+  constructor(options: ITestBedOptions) {
+    super(NAPConverter.id, options);
+  }
 
-  public convertLayer(msg: IFloodDataMessage, callback: Function) {
+  public getConsumerTopics(): string[] {
+    return [FLOOD_TOPIC];
+  }
+
+  public getProducerTopics(): string[] {
+    return [WATERHEIGHT_TOPIC];
+  }
+
+  private initNewScenario(scenarioId: string) {
+    if (this.receivedUpdateCount.hasOwnProperty(scenarioId)) return log.info(`Already created scenario`);
+    this.receivedUpdateCount[scenarioId] = {count: 0, finished: false};
+    this.sentUpdateCount[scenarioId] = {count: 0, finished: false};
+    this.inputLayers[scenarioId] = [];
+  }
+
+  public processScenarioUpdate(msg: IAdapterMessage) {
+    const value = msg.value as IChainScenario;
+    if (dependentSims.indexOf(value.simId) >= 0) {
+      log.info(`NAPConverter processes scenarioupdate: ${JSON.stringify(msg).substr(0, 500)}`);
+      if (value.simStatus === SimStatus.INITIAL) {
+        this.initNewScenario(value.scenarioId);
+      }
+      if (value.simStatus === SimStatus.UPDATE) {
+        this.receivedUpdateCount[value.scenarioId].count += 1;
+      }
+      if (value.simStatus === SimStatus.FINISHED) {
+        this.receivedUpdateCount[value.scenarioId].finished = true;
+        this.checkFinished[value.scenarioId];
+      }
+    }
+  }
+
+  private checkFinished(id: string) {
+    if (this.receivedUpdateCount[id].finished === true && this.receivedUpdateCount[id].count === this.sentUpdateCount[id].count) {
+      this.sendScenarioUpdate(id, NAPConverter.id, SimStatus.FINISHED);
+    }
+  }
+
+  public processMessage(msg: IAdapterMessage) {
+    log.info(`NAPConverter processes msg: ${JSON.stringify(msg).substr(0, 500)}`);
+    const value = msg.value as IFloodDataMessage;
+    this.convertLayer(value, result => {
+      if (!result) {
+        log.warn(`Error converting ${value.id}`);
+        return;
+      }
+      log.info(`Converted ${value.id}`);
+      const napResult: IFloodDataMessage = {id: value.id, timestamp: value.timestamp, data: result};
+      this.sendData(WATERHEIGHT_TOPIC, napResult);
+      this.sentUpdateCount[value.id].count += 1;
+      this.checkFinished(value.id);
+    });
+  }
+
+  public convertLayer(msg: IFloodDataMessage, callback: (result?: string) => void) {
     if (msg.timestamp === 0) {
+      this.sendScenarioUpdate(msg.id, NAPConverter.id, SimStatus.INITIAL);
       this.createBaseHeightMap(msg.id, msg.data);
-      return callback(this.baseGrid);
+      log.info(`Created basegrid for ${msg.id}`);
+      return callback(JSON.stringify(this.baseGrid));
     }
     if (!this.baseGrid.hasOwnProperty(msg.id)) {
       log.warn(`Basegrid not found for ${msg.id}`);
@@ -38,7 +109,8 @@ export class NAPConverter {
     isoLayer.data = '';
     isoLayer.id = 'watercontour';
     isoLayer.title = 'Watercontour';
-    callback(isoLayer);
+    this.sendScenarioUpdate(msg.id, NAPConverter.id, SimStatus.UPDATE);
+    callback(JSON.stringify(isoLayer));
   }
 
   private createBaseHeightMap(id: string, data: string) {

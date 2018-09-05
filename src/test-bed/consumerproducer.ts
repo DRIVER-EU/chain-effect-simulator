@@ -3,7 +3,7 @@
 // const kafkaLogging = require('kafka-node/logging');
 // kafkaLogging.setLoggerProvider(consoleLoggerProvider);
 
-import {Message, OffsetFetchRequest} from 'kafka-node';
+import {Message, OffsetFetchRequest, ProduceRequest} from 'kafka-node';
 import {TestBedAdapter, Logger, LogLevel, ITopicMetadataItem, IAdapterMessage, ITestBedOptions} from 'node-test-bed-adapter';
 const log = Logger.instance;
 const stringify = (m: string | Object) => (typeof m === 'string' ? m : JSON.stringify(m, null, 2)).substr(0, 200);
@@ -15,15 +15,28 @@ export interface Dictionary<T> {
 
 export type MessageHandlerFunc = (msg: IAdapterMessage) => void;
 
-export class Consumer {
+export class ConsumerProducer {
   private adapter: TestBedAdapter;
   private handlers: Dictionary<MessageHandlerFunc> = {};
+  private isReady: boolean = false;
 
-  constructor(options: ITestBedOptions) {
+  constructor(options: ITestBedOptions, whenReady?: Function) {
     this.adapter = new TestBedAdapter(options);
-    this.adapter.on('ready', () => this.initialize());
+    this.adapter.on('ready', () => {});
     this.adapter.on('error', err => log.error(`Consumer received an error: ${err}`));
-    this.adapter.connect();
+    this.adapter
+      .connect()
+      .then(() => {
+        this.initialize();
+        this.isReady = true;
+        log.info(`ConsumerProducer ${options.clientId} is connected`);
+        if (whenReady) whenReady();
+      })
+      .catch(e => log.warn(e));
+  }
+
+  public stop() {
+    this.adapter.close();
   }
 
   public addHandler(topic: string, cb: MessageHandlerFunc) {
@@ -31,22 +44,48 @@ export class Consumer {
     log.debug(`Add handler for topic ${topic.toLowerCase()} for ${this.adapter.configuration.clientId}`);
   }
 
-  public addConsumerTopics(topics: string[]) {
-    const topicRequests: OffsetFetchRequest[] = topics.map(t => {
-      return {topic: t, offset: -1};
-    });
-    this.adapter.addConsumerTopics(topicRequests);
-  }
+  // public async addConsumerTopics(topics: string[]) {
+  //   const topicRequests: OffsetFetchRequest[] = topics.map(t => {
+  //     return {topic: t, offset: -1};
+  //   });
+  //   await this.adapter.addConsumerTopics(topicRequests, true);
+  // }
+
+  // public async addProducerTopics(topics: string[]) {
+  //   if (!this.isReady) {
+  //     log.warn(`Producer not ready yet`);
+  //     return;
+  //   }
+  //   await this.adapter.addProducerTopics(topics);
+  // }
 
   private initialize() {
     this.subscribe();
-    log.info('Consumer is connected');
   }
 
   private subscribe() {
     this.adapter.on('message', message => this.handleMessage(message));
-    // this.adapter.addConsumerTopics({topic: TestBedAdapter.HeartbeatTopic, offset: -1}, true).catch(err => {
-    this.adapter.addConsumerTopics();
+    this.adapter.on('raw', message => log.debug(`Raw: ${message}`));
+  }
+
+  public sendData(topic: string, data: any, cb?: (err?: Error, data?: any) => void) {
+    log.info(`Producer sends: ${stringify(data)} on ${topic}`);
+    const payloads: ProduceRequest[] = [
+      {
+        topic: topic,
+        messages: data,
+        attributes: 1 // Gzip
+      }
+    ];
+    this.adapter.send(payloads, (error, data) => {
+      if (error) {
+        log.error(error);
+      }
+      if (data) {
+        log.info(data);
+      }
+      if (cb) cb(error, data);
+    });
   }
 
   private handleMessage(message: IAdapterMessage) {
@@ -60,8 +99,8 @@ export class Consumer {
         break;
       default:
         if (Object.keys(this.handlers).indexOf(message.topic.toLowerCase()) < 0) {
-          // log.info(`Received unhandled ${message.topic} message with key ${stringify(message.key)}`);
-          // log.debug(`Available handlers: ${stringify(Object.keys(this.handlers))}`);
+          log.info(`Received unhandled ${message.topic} message with key ${stringify(message.key)}`);
+          log.debug(`Available handlers: ${stringify(Object.keys(this.handlers))}`);
         } else {
           this.callHandlerFunction(message);
         }
