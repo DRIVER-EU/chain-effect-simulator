@@ -2,25 +2,17 @@
   "clientId": "chain-effect-sim",
   "kafkaHost": "localhost:3501",
   "schemaRegistry": "http://localhost:3502",
-  "wrapUnions": "auto",
+  "wrapUnions": true,
   "heartbeatInterval": 10000,
-  "fromOffset": true,
+  "fromOffset": false,
   "fetchAllSchemas": false,
   "fetchAllVersions": false,
-  "autoRegisterSchemas": false,
+  "autoRegisterSchemas": true,
   "schemaFolder": "./data/schemas",
   "consume": [{
-    "topic": "chain_scenario",
-    "offset": -1
+    "topic": "chain_scenario"
   }, {
-    "topic": "chain_flood",
-    "offset": -1
-  }, {
-    "topic": "chain_power",
-    "offset": -1
-  }, {
-    "topic": "chain_waterheight",
-    "offset": -1
+    "topic": "chain"
   }],
-  "produce": ["chain_scenario", "chain_flood", "chain_power", "chain_waterheight"]
+  "produce": ["chain_scenario", "chain"]
 }

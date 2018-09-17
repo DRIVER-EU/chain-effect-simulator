@@ -10,6 +10,7 @@ import {IIsoGrid, IFeatureCollectionDescription, IFloodDataMessage, IChainUpdate
 import {Logger, IAdapterMessage, ITestBedOptions} from 'node-test-bed-adapter';
 import {Simulator} from '../Simulator';
 import {FloodSim} from '../FloodSim/FloodSim';
+import {IsoLines} from '../../utils/Isolines';
 
 const log = Logger.instance;
 
@@ -33,9 +34,10 @@ export class NAPConverter extends Simulator {
   private inputLayers: Dictionary<IFloodDataMessage[]> = {};
 
   private header = '';
+  private processed: number[] = [];
 
-  constructor(options: ITestBedOptions) {
-    super(NAPConverter.id, options);
+  constructor(dataFolder: string, options: ITestBedOptions, whenReady?: Function) {
+    super(dataFolder, NAPConverter.id, options, whenReady);
   }
 
   public getConsumerTopics(): string[] {
@@ -46,8 +48,12 @@ export class NAPConverter extends Simulator {
     return [WATERHEIGHT_TOPIC];
   }
 
+  public hasScenario(scenarioId: string) {
+    return this.receivedUpdateCount.hasOwnProperty(scenarioId);
+  }
+
   private initNewScenario(scenarioId: string) {
-    if (this.receivedUpdateCount.hasOwnProperty(scenarioId)) return log.info(`Already created scenario`);
+    if (this.hasScenario(scenarioId)) return log.info(`Already created scenario`);
     this.receivedUpdateCount[scenarioId] = {count: 0, finished: false};
     this.sentUpdateCount[scenarioId] = {count: 0, finished: false};
     this.inputLayers[scenarioId] = [];
@@ -61,24 +67,43 @@ export class NAPConverter extends Simulator {
         this.initNewScenario(value.scenarioId);
       }
       if (value.simStatus === SimStatus.UPDATE) {
+        this.initNewScenario(value.scenarioId);
         this.receivedUpdateCount[value.scenarioId].count += 1;
+        this.checkFinished(value.scenarioId);
       }
       if (value.simStatus === SimStatus.FINISHED) {
+        this.initNewScenario(value.scenarioId);
         this.receivedUpdateCount[value.scenarioId].finished = true;
-        this.checkFinished[value.scenarioId];
+        this.checkFinished(value.scenarioId);
       }
     }
   }
 
   private checkFinished(id: string) {
-    if (this.receivedUpdateCount[id].finished === true && this.receivedUpdateCount[id].count === this.sentUpdateCount[id].count) {
-      this.sendScenarioUpdate(id, NAPConverter.id, SimStatus.FINISHED);
+    log.debug(`checkFinished ${this.receivedUpdateCount[id].finished}. ${this.sentUpdateCount[id].count}, ${this.receivedUpdateCount[id].count}`);
+    if (this.receivedUpdateCount[id].finished === true && this.receivedUpdateCount[id].count > 0 && this.receivedUpdateCount[id].count === this.sentUpdateCount[id].count) {
+      this.finish(id);
     }
+  }
+
+  private finish(id: string) {
+    const f = async id => {
+      await this.sleep(5000);
+      this.sendScenarioUpdate(id, NAPConverter.id, SimStatus.FINISHED, () => {
+        log.info('NAPConverter finished');
+      });
+    };
   }
 
   public processMessage(msg: IAdapterMessage) {
     log.info(`NAPConverter processes msg: ${JSON.stringify(msg).substr(0, 500)}`);
     const value = msg.value as IFloodDataMessage;
+    if (this.processed.indexOf(value.timestamp) >= 0) {
+      log.warn(`Already processed ${value.timestamp}`);
+      return;
+    } else {
+      this.processed.push(value.timestamp);
+    }
     this.convertLayer(value, result => {
       if (!result) {
         log.warn(`Error converting ${value.id}`);
@@ -86,34 +111,51 @@ export class NAPConverter extends Simulator {
       }
       log.info(`Converted ${value.id}`);
       const napResult: IFloodDataMessage = {id: value.id, timestamp: value.timestamp, data: result};
-      this.sendData(WATERHEIGHT_TOPIC, napResult);
-      this.sentUpdateCount[value.id].count += 1;
-      this.checkFinished(value.id);
+      this.sendData(WATERHEIGHT_TOPIC, napResult, (err, data) => {
+        log.debug(`sentUpdateCount ${this.sentUpdateCount[value.id].count}. += 1 ts:${value.timestamp}`);
+        this.sentUpdateCount[value.id].count += 1;
+        this.checkFinished(value.id);
+      });
     });
   }
 
-  public convertLayer(msg: IFloodDataMessage, callback: (result?: string) => void) {
+  public async convertLayer(msg: IFloodDataMessage, callback: (result?: string) => void) {
+    log.info(`NAPConverter: process timestamp ${msg.timestamp}`);
     if (msg.timestamp === 0) {
-      this.sendScenarioUpdate(msg.id, NAPConverter.id, SimStatus.INITIAL);
-      this.createBaseHeightMap(msg.id, msg.data);
-      log.info(`Created basegrid for ${msg.id}`);
-      return callback(JSON.stringify(this.baseGrid));
+      // if (this.baseGrid.hasOwnProperty(msg.id)) {
+      //   log.error('NAPConverter: baseGrid already present!!!!');
+      //   return callback();
+      // }
+      this.sendScenarioUpdate(msg.id, NAPConverter.id, SimStatus.INITIAL, () => {
+        this.createBaseHeightMap(msg.id, msg.data);
+        log.info(`Created basegrid for ${msg.id}`);
+        let result: IIsoGrid = this.normalizeData(msg.data, this.baseGrid[msg.id]);
+        return callback(result.grid);
+      });
     }
     if (!this.baseGrid.hasOwnProperty(msg.id)) {
-      log.warn(`Basegrid not found for ${msg.id}`);
-      return callback();
+      for (let i = 0; i <= 10; i++) {
+        if (!this.baseGrid.hasOwnProperty(msg.id)) {
+          log.info(`Basegrid not found for ${msg.id}, trying again`);
+          if (i === 10) {
+            log.warn(`Basegrid not found for ${msg.id}`);
+            return callback();
+          }
+          await this.sleep(1000);
+        } else {
+          log.info(`Basegrid found for ${msg.id}`);
+          break;
+        }
+      }
     }
     let result: IIsoGrid = this.normalizeData(msg.data, this.baseGrid[msg.id]);
-    let isoLayer: any = {};
-    isoLayer.features = result.iso.features;
-    isoLayer.data = '';
-    isoLayer.id = 'watercontour';
-    isoLayer.title = 'Watercontour';
-    this.sendScenarioUpdate(msg.id, NAPConverter.id, SimStatus.UPDATE);
-    callback(JSON.stringify(isoLayer));
+    this.sendScenarioUpdate(msg.id, NAPConverter.id, SimStatus.UPDATE, () => {
+      callback(result.grid);
+    });
   }
 
   private createBaseHeightMap(id: string, data: string) {
+    IsoLines.convertEsriHeaderToGridParams(data, this.gridParams);
     this.baseGrid[id] = [];
     var lines = data.split('\n');
     var splitCellsRegex = new RegExp('[^ ]+', 'g');

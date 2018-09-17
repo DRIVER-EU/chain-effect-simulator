@@ -6,9 +6,10 @@
   "scripts": {
     "build": "tsc && yarn copy-config && yarn copy-schemas",
     "copy-config": "cpx -u \"config/*.json\" dist/config",
-    "copy-schemas": "cpx -u \"data/**/*.{avsc,asc}\" ./dist/data",
+    "copy-schemas": "cpx -u \"data/**/*.{avsc,asc,json}\" ./dist/data",
     "dev": "tsc -w",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "test": "mocha --timeout 3000 --require ts-node/register test/index.ts"
   },
   "author": {
     "name": "Rinze Bruining",
@@ -20,22 +21,31 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@types/async": "^2.0.49",
     "@types/geojson": "^7946.0.4",
+    "async": "^2.6.1",
     "chokidar": "^2.0.4",
     "compression": "^1.7.3",
     "cors": "^2.8.4",
     "dotenv": "^6.0.0",
     "express": "^4.16.3",
     "moment": "^2.22.2",
-    "node-test-bed-adapter": "^0.4.5",
+    "node-test-bed-adapter": "^0.5.4",
     "underscore": "^1.9.1",
     "util": "^0.11.0",
     "winston": "^2.4.4"
   },
   "devDependencies": {
+    "@types/chai": "^4.1.4",
     "@types/kafka-node": "^2.0.7",
-    "@types/node": "^10.7.1",
-    "cpx": "^1.5.0"
+    "@types/mocha": "^5.2.5",
+    "@types/node": "^10.10.0",
+    "chai": "^4.1.2",
+    "cpx": "^1.5.0",
+    "mocha": "^5.2.0",
+    "ts-mockito": "^2.3.1",
+    "ts-node": "^7.0.1",
+    "typescript": "^3.0.3"
   },
   "bugs": {
     "url": "https://github.com/TNOCS/csWeb/issues"

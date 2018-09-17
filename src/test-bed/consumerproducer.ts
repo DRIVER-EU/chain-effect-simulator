@@ -64,12 +64,14 @@ export class ConsumerProducer {
   }
 
   private subscribe() {
-    this.adapter.on('message', message => this.handleMessage(message));
+    this.adapter.on('message', message => {
+      this.handleMessage(message);
+    });
     this.adapter.on('raw', message => log.debug(`Raw: ${message}`));
   }
 
   public sendData(topic: string, data: any, cb?: (err?: Error, data?: any) => void) {
-    log.info(`Producer sends: ${stringify(data)} on ${topic}`);
+    log.info(`Producer ${this.adapter.configuration.clientId} sends: ${stringify(data)} on ${topic}`);
     const payloads: ProduceRequest[] = [
       {
         topic: topic,
@@ -99,8 +101,8 @@ export class ConsumerProducer {
         break;
       default:
         if (Object.keys(this.handlers).indexOf(message.topic.toLowerCase()) < 0) {
-          log.info(`Received unhandled ${message.topic} message with key ${stringify(message.key)}`);
-          log.debug(`Available handlers: ${stringify(Object.keys(this.handlers))}`);
+          // log.info(`Received unhandled ${message.topic} message with key ${stringify(message.key)}`);
+          // log.debug(`Available handlers: ${stringify(Object.keys(this.handlers))}`);
         } else {
           this.callHandlerFunction(message);
         }
