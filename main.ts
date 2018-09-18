@@ -46,7 +46,7 @@ testBedOptions.logging = {
 const startFloodSim = () => {
   log.info('Preparing flood...');
   const floodSim = new FloodSim(SIM_DATA_FOLDER, clone(testBedOptions));
-  floodSim.setFiles(['./data/demo/waterlevel_0min_40x40m.asc', './data/demo/waterlevel_60min_40x40m.asc']);
+  floodSim.setFiles(['./data/demo/waterlevel_0min_40x40m.asc', './data/demo/waterlevel_60min_40x40m.asc', './data/demo/waterlevel_120min_40x40m.asc', './data/demo/waterlevel_240min_40x40m.asc', './data/demo/waterlevel_360min_40x40m.asc']);
   floodSim.setInterval(60 * 60 * 1000);
   const startFlood = async () => {
     do {
@@ -66,10 +66,11 @@ const registerSims = () => {
   var napConverter, electricitySim, careSim;
   napConverter = new NAPConverter(SIM_DATA_FOLDER, clone(testBedOptions), () => {
     electricitySim = new ElectricitySim(SIM_DATA_FOLDER, clone(testBedOptions), () => {
-      startFloodSim();
+      careSim = new CareObjectSim(SIM_DATA_FOLDER, clone(testBedOptions), () => {
+        startFloodSim();
+      });
     });
   });
-  // careSim = new CareObjectSim(SIM_DATA_FOLDER, clone(testBedOptions));
 };
 
 testBedOptions.autoRegisterSchemas = true;

@@ -5,11 +5,11 @@ import {Logger, IAdapterMessage, ITestBedOptions} from 'node-test-bed-adapter';
 import {Simulator} from '../Simulator';
 import fs from 'fs';
 import async from 'async';
-import {IFloodDataMessage} from '../../models/Interfaces';
+import {IChainDataMessage} from '../../models/Interfaces';
 
 const log = Logger.instance;
 
-const FLOOD_TOPIC = process.env.FLOOD_TOPIC || 'chain_flood';
+const CHAIN_TOPIC = process.env.CHAIN_TOPIC || 'chain_flood';
 const FLOOD_ID = 'demo';
 
 /**
@@ -31,12 +31,7 @@ export class FloodSim extends Simulator {
   }
 
   public getProducerTopics(): string[] {
-    return [FLOOD_TOPIC];
-  }
-
-  public processScenarioUpdate(msg: IAdapterMessage): IChainScenario {
-    const value = msg.value as IChainScenario;
-    return value;
+    return [CHAIN_TOPIC];
   }
 
   public processMessage(msg: IAdapterMessage) {}
@@ -57,31 +52,28 @@ export class FloodSim extends Simulator {
     }
   }
 
-  private publishFiles() {
-    log.warn('INITIAL ' + FLOOD_ID);
-    this.sendScenarioUpdate(FLOOD_ID, FloodSim.id, SimStatus.INITIAL, () => {
-      var counter = 0;
-      async.each(
-        this.files,
-        (file, cb) => {
-          this.publishFile(file, counter, () => {
-            counter += 1;
-            this.sendScenarioUpdate(FLOOD_ID, FloodSim.id, SimStatus.UPDATE, async () => {
-              log.warn('UPDATE ' + FLOOD_ID);
-              cb();
-            });
-          });
-        },
-        error => {
-          log.warn('FINISHED ' + FLOOD_ID);
-          this.sendScenarioUpdate(FLOOD_ID, FloodSim.id, SimStatus.FINISHED);
-        }
-      );
-    });
+  private isFinalFile(counter: number) {
+    return counter === this.files.length - 1;
   }
 
-  private publishFile(file: string, index: number, cb: Function) {
-    this.sendFile(FLOOD_TOPIC, file, index * this.interval, cb);
+  private publishFiles() {
+    log.warn('INITIAL ' + FLOOD_ID);
+    async.eachOfSeries(
+      this.files,
+      (file, counter: number, cb) => {
+        this.publishFile(file, counter, this.isFinalFile(counter), () => {
+          log.warn('UPDATE ' + FLOOD_ID);
+          cb();
+        });
+      },
+      error => {
+        log.warn('FINISHED ' + FLOOD_ID);
+      }
+    );
+  }
+
+  private publishFile(file: string, index: number, isFinal: boolean, cb: Function) {
+    this.sendFile(CHAIN_TOPIC, file, index * this.interval, isFinal, cb);
   }
 
   public setInterval(interval: number) {
@@ -92,10 +84,10 @@ export class FloodSim extends Simulator {
     this.files = files;
   }
 
-  private sendFile(topic: string, files: string, timestamp: number, resolve: Function) {
+  private sendFile(topic: string, files: string, timestamp: number, isFinal: boolean, resolve: Function) {
     if (fs.existsSync(files)) {
       const demoData = fs.readFileSync(files, {encoding: 'utf8'});
-      const demoMsg: IFloodDataMessage = {id: FLOOD_ID, timestamp: timestamp, data: demoData};
+      const demoMsg: IChainDataMessage = {id: FLOOD_ID, simulator: FloodSim.id, isFinal: isFinal, timestamp: timestamp, data: demoData};
       this.sendData(topic, demoMsg, (err, data) => {
         log.info(`Sent demo data ${timestamp} on topic ${topic}`);
         resolve();

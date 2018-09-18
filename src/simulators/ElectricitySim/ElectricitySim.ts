@@ -1,6 +1,6 @@
 import {FeatureCollection, Feature, Polygon} from 'geojson';
 import {Dictionary} from '../../test-bed/consumer';
-import {IFloodDataMessage, IChainUpdate, IChangeEvent, InfrastructureState, ChangeType} from '../../models/Interfaces';
+import {IChainDataMessage, IChainUpdate, IChangeEvent, InfrastructureState, ChangeType} from '../../models/Interfaces';
 import {Logger, IAdapterMessage, ITestBedOptions, clone} from 'node-test-bed-adapter';
 import {Simulator} from '../Simulator';
 import {IChainScenario, SimStatus} from '../../models/schemas';
@@ -10,8 +10,7 @@ import path from 'path';
 import * as _ from 'underscore';
 import {GeoExtensions} from '../../utils/GeoExtensions';
 
-const POWER_TOPIC = process.env.POWER_TOPIC || 'chain_power';
-const WATERHEIGHT_TOPIC = process.env.WATERHEIGHT_TOPIC || 'chain_waterheight';
+const CHAIN_TOPIC = process.env.CHAIN_TOPIC || 'chain';
 
 const dependentSims = [NAPConverter.id];
 
@@ -29,8 +28,8 @@ export class ElectricitySim extends Simulator {
   private sentUpdateCount: Dictionary<IChainUpdate> = {};
   private baseLayer: FeatureCollection;
 
-  private inputLayers: Dictionary<IFloodDataMessage[]> = {};
-  private outputLayers: Dictionary<IFloodDataMessage[]> = {};
+  private inputLayers: Dictionary<IChainDataMessage[]> = {};
+  private outputLayers: Dictionary<IChainDataMessage[]> = {};
   private processed: number[] = [];
 
   constructor(dataFolder: string, options: ITestBedOptions, whenReady?: Function) {
@@ -39,11 +38,11 @@ export class ElectricitySim extends Simulator {
   }
 
   public getConsumerTopics(): string[] {
-    return [WATERHEIGHT_TOPIC];
+    return [CHAIN_TOPIC];
   }
 
   public getProducerTopics(): string[] {
-    return [POWER_TOPIC];
+    return [CHAIN_TOPIC];
   }
 
   private readDataFolder() {
@@ -65,37 +64,23 @@ export class ElectricitySim extends Simulator {
     if (this.hasScenario(scenarioId)) return log.info(`Already created scenario`);
     this.receivedUpdateCount[scenarioId] = {count: 0, finished: false};
     this.inputLayers[scenarioId] = [];
-    const initialLayer: IFloodDataMessage = {id: scenarioId, timestamp: -1, data: JSON.stringify(this.baseLayer)};
+    const initialLayer: IChainDataMessage = {id: scenarioId, simulator: ElectricitySim.id, isFinal: false, timestamp: -1, data: JSON.stringify(this.baseLayer)};
     this.outputLayers[scenarioId] = [initialLayer];
     this.sentUpdateCount[scenarioId] = {count: 0, finished: false};
-    this.sendScenarioUpdate(scenarioId, ElectricitySim.id, SimStatus.INITIAL);
+    this.sendData(CHAIN_TOPIC, initialLayer, (err, data) => {});
   }
 
-  private checkFinished(id: string) {
-    if (this.receivedUpdateCount[id].finished === true) {
+  private checkFinished(id: string, isFinished: boolean) {
+    if (isFinished) {
       this.processAllMessages(id);
     }
   }
 
-  public processScenarioUpdate(msg: IAdapterMessage) {
-    const value = msg.value as IChainScenario;
-    if (dependentSims.indexOf(value.simId) >= 0) {
-      if (value.simStatus === SimStatus.INITIAL) {
-        this.initNewScenario(value.scenarioId);
-      }
-      if (value.simStatus === SimStatus.UPDATE) {
-        this.receivedUpdateCount[value.scenarioId].count += 1;
-      }
-      if (value.simStatus === SimStatus.FINISHED) {
-        this.receivedUpdateCount[value.scenarioId].finished = true;
-        this.checkFinished(value.scenarioId);
-      }
-    }
-  }
-
   public processMessage(msg: IAdapterMessage) {
+    const value = msg.value as IChainDataMessage;
+    if (dependentSims.indexOf(value.simulator) < 0) return;
+    if (!this.hasScenario(value.id)) this.initNewScenario(value.id);
     log.info(`ElectricSim processes msg: ${JSON.stringify(msg).substr(0, 500)}`);
-    const value = msg.value as IFloodDataMessage;
     if (this.processed.indexOf(value.timestamp) >= 0) {
       log.warn(`Already processed ${value.timestamp}`);
       return;
@@ -104,26 +89,21 @@ export class ElectricitySim extends Simulator {
     }
     if (!this.hasScenario(value.id)) this.initNewScenario(value.id);
     this.inputLayers[value.id].push(value);
-    this.checkFinished(value.id);
+    this.checkFinished(value.id, value.isFinal);
   }
 
   public processAllMessages(id: string) {
     const floodLayers = this.inputLayers[id].sort((a, b) => a.timestamp - b.timestamp);
-    floodLayers.forEach(flood => {
+    floodLayers.forEach((flood, index) => {
       this.processFloodLayer(flood, (result: FeatureCollection) => {
         log.info(`Processed ${flood.id} at ${flood.timestamp}`);
-        const powerResult: IFloodDataMessage = {id: flood.id, timestamp: flood.timestamp, data: JSON.stringify(result)};
-        this.sendData(POWER_TOPIC, powerResult, (err, data) => {
-          this.sentUpdateCount[flood.id].count += 1;
-          if (this.receivedUpdateCount[flood.id].finished === true && this.receivedUpdateCount[flood.id].count === this.sentUpdateCount[flood.id].count) {
-            this.sendScenarioUpdate(flood.id, ElectricitySim.id, SimStatus.FINISHED);
-          }
-        });
+        const powerResult: IChainDataMessage = {id: flood.id, simulator: ElectricitySim.id, isFinal: flood.isFinal, timestamp: flood.timestamp, data: JSON.stringify(result)};
+        this.sendData(CHAIN_TOPIC, powerResult, (err, data) => {});
       });
     });
   }
 
-  public processFloodLayer(msg: IFloodDataMessage, callback: (result: FeatureCollection) => void) {
+  public processFloodLayer(msg: IChainDataMessage, callback: (result: FeatureCollection) => void) {
     const floodLayer = msg.data;
     if (!floodLayer) {
       log.warn('No floodlayer received');
@@ -146,13 +126,9 @@ export class ElectricitySim extends Simulator {
     this.inputLayers[msg.id][msg.timestamp] = powerLayer;
     // this.updateFailedFeatures(failedObjects, powerLayer.id, floodTime);
     // this.sendLayerUpdate(failedObjects, powerLayer, floodTime);
-    let newPowerLayer: any = {};
-    newPowerLayer.features = features;
-    newPowerLayer.data = '';
-    newPowerLayer.id = 'power';
-    newPowerLayer.title = 'Power stations';
-    this.sendScenarioUpdate(msg.id, ElectricitySim.id, SimStatus.UPDATE);
+    const newPowerLayer: IChainDataMessage = {id: msg.id, simulator: ElectricitySim.id, isFinal: msg.isFinal, timestamp: msg.timestamp, data: JSON.stringify(GeoExtensions.createFeatureCollection(features))};
     log.info(`Power features failed: ${failedObjects.length}, Power features after: ${features.length}`);
+    this.outputLayers[msg.id].push(newPowerLayer);
     callback(GeoExtensions.createFeatureCollection(failedObjects.map(fo => fo.value)));
   }
 

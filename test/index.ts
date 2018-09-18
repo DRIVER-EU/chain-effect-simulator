@@ -1,7 +1,7 @@
 import {ITestBedOptions, IAdapterMessage} from 'node-test-bed-adapter';
 import path from 'path';
 import fs from 'fs';
-import { IFloodDataMessage } from '../src/models/Interfaces';
+import { IChainDataMessage } from '../src/models/Interfaces';
 require('./TestFloodSim');
 require('./TestNAPConverter');
 require('./TestElectricitySim');
@@ -9,12 +9,15 @@ require('./TestCareObjectSim');
 
 export const FLOOD_DATA_INITIAL = () => fs.readFileSync(path.join('.', 'test', 'testdata', 'demo', 'waterlevel_0min.asc'), 'utf8');
 export const FLOOD_DATA_FINAL = () => fs.readFileSync(path.join('.', 'test', 'testdata', 'demo', 'waterlevel_60min.asc'), 'utf8');
-export const NAP_DATA_INITIAL = () => fs.readFileSync(path.join('.', 'test', 'testdata', 'NAPConverter', 'chain_waterheight-0.json'), 'utf8');
-export const NAP_DATA_FINAL = () => fs.readFileSync(path.join('.', 'test', 'testdata', 'NAPConverter', 'chain_waterheight-3600000.json'), 'utf8');
+export const NAP_DATA_INITIAL = () => fs.readFileSync(path.join('.', 'test', 'testdata', 'NAPConverter', 'chain-0.json'), 'utf8');
+export const NAP_DATA_FINAL = () => fs.readFileSync(path.join('.', 'test', 'testdata', 'NAPConverter', 'chain-3600000.json'), 'utf8');
+export const POWER_DATA_INITIAL = () => fs.readFileSync(path.join('.', 'test', 'testdata', 'ElectricitySim', 'chain--1.json'), 'utf8');
+export const POWER_DATA_UPDATE = () => fs.readFileSync(path.join('.', 'test', 'testdata', 'ElectricitySim', 'chain-0.json'), 'utf8');
+export const POWER_DATA_FINAL = () => fs.readFileSync(path.join('.', 'test', 'testdata', 'ElectricitySim', 'chain-3600000.json'), 'utf8');
 export const DEMO_SCENARIO: string = 'demo-scenario';
 export const TEST_DATA_FOLDER = path.join('.', 'test', 'testdata');
 
-export const WRITE_OUTPUT = (sim: string, file: string, data: IFloodDataMessage) => {
+export const WRITE_OUTPUT = (sim: string, file: string, data: IChainDataMessage) => {
   fs.writeFileSync(path.join('.', 'test', 'testdata', sim, file), data.data, 'utf8');
 };
 

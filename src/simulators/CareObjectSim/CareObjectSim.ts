@@ -1,9 +1,8 @@
 import {FeatureCollection, Feature, Polygon} from 'geojson';
 import {Dictionary} from '../../test-bed/consumer';
-import {IFloodDataMessage, IChainUpdate, IChangeEvent, InfrastructureState, ChangeType} from '../../models/Interfaces';
+import {IChainDataMessage, IChainUpdate, IChangeEvent, InfrastructureState, ChangeType} from '../../models/Interfaces';
 import {Logger, IAdapterMessage, ITestBedOptions, clone} from 'node-test-bed-adapter';
 import {Simulator} from '../Simulator';
-import {IChainScenario, SimStatus} from '../../models/schemas';
 import {NAPConverter} from '../NAPConverter/NAPConverter';
 import fs from 'fs';
 import path from 'path';
@@ -11,12 +10,9 @@ import * as _ from 'underscore';
 import {GeoExtensions} from '../../utils/GeoExtensions';
 import {ElectricitySim} from '../ElectricitySim/ElectricitySim';
 
-const CARE_TOPIC = process.env.CARE_TOPIC || 'chain_care';
-const POWER_TOPIC = process.env.POWER_TOPIC || 'chain_power';
-const WATERHEIGHT_TOPIC = process.env.WATERHEIGHT_TOPIC || 'chain_waterheight';
+const CHAIN_TOPIC = process.env.CHAIN_TOPIC || 'chain';
 
-// const dependentSims = [ElectricitySim.id, NAPConverter.id];
-const dependentSims = [NAPConverter.id];
+const dependentSims = [ElectricitySim.id, NAPConverter.id];
 const log = Logger.instance;
 
 /**
@@ -32,22 +28,22 @@ export class CareObjectSim extends Simulator {
   private sentUpdateCount: Dictionary<IChainUpdate> = {};
   private baseLayer: FeatureCollection;
 
-  private inputLayers: Dictionary<IFloodDataMessage[]> = {};
-  private outputLayers: Dictionary<IFloodDataMessage[]> = {};
-  private processed: number[] = [];
+  private inputLayers: Dictionary<Dictionary<IChainDataMessage[]>> = {};
+  private outputLayers: Dictionary<IChainDataMessage[]> = {};
+  private finished: Dictionary<boolean> = {};
 
-  constructor(dataFolder: string, options: ITestBedOptions) {
-    super(dataFolder, CareObjectSim.id, options);
+  constructor(dataFolder: string, options: ITestBedOptions, whenReady?: Function) {
+    super(dataFolder, CareObjectSim.id, options, whenReady);
     this.readDataFolder();
   }
 
   public getConsumerTopics(): string[] {
-    // return [WATERHEIGHT_TOPIC, POWER_TOPIC];
-    return [WATERHEIGHT_TOPIC];
+    // return [CHAIN_TOPIC, CHAIN_TOPIC];
+    return [CHAIN_TOPIC];
   }
 
   public getProducerTopics(): string[] {
-    return [CARE_TOPIC];
+    return [CHAIN_TOPIC];
   }
 
   private readDataFolder() {
@@ -68,66 +64,75 @@ export class CareObjectSim extends Simulator {
   private initNewScenario(scenarioId: string) {
     if (this.hasScenario(scenarioId)) return log.info(`Already created scenario`);
     this.receivedUpdateCount[scenarioId] = {count: 0, finished: false};
-    this.inputLayers[scenarioId] = [];
-    const initialLayer: IFloodDataMessage = {id: scenarioId, timestamp: -1, data: JSON.stringify(this.baseLayer)};
+    this.inputLayers[scenarioId] = {};
+    dependentSims.forEach(ds => (this.inputLayers[scenarioId][ds] = []));
+    const initialLayer: IChainDataMessage = {id: scenarioId, simulator: CareObjectSim.id, isFinal: false, timestamp: -1, data: JSON.stringify(this.baseLayer)};
     this.outputLayers[scenarioId] = [initialLayer];
     this.sentUpdateCount[scenarioId] = {count: 0, finished: false};
-    this.sendScenarioUpdate(scenarioId, CareObjectSim.id, SimStatus.INITIAL);
+    this.sendData(CHAIN_TOPIC, initialLayer, (err, data) => {});
   }
 
-  private checkFinished(id: string) {
-    if (this.receivedUpdateCount[id].finished === true) {
+  private checkFinished(id: string, simulator: string, isFinished: boolean) {
+    if (isFinished) {
+      this.finished[simulator] = true;
+    }
+    if (Object.keys(this.finished).length == dependentSims.length) {
       this.processAllMessages(id);
     }
   }
 
-  public processScenarioUpdate(msg: IAdapterMessage) {
-    const value = msg.value as IChainScenario;
-    if (dependentSims.indexOf(value.simId) >= 0) {
-      if (value.simStatus === SimStatus.INITIAL) {
-        this.initNewScenario(value.scenarioId);
-      }
-      if (value.simStatus === SimStatus.UPDATE) {
-        this.receivedUpdateCount[value.scenarioId].count += 1;
-      }
-      if (value.simStatus === SimStatus.FINISHED) {
-        this.receivedUpdateCount[value.scenarioId].finished = true;
-        this.checkFinished(value.scenarioId);
-      }
-    }
-  }
-
   public processMessage(msg: IAdapterMessage) {
+    const value = msg.value as IChainDataMessage;
+    if (dependentSims.indexOf(value.simulator) < 0) return;
     log.info(`CareObjectSim processes msg: ${JSON.stringify(msg).substr(0, 500)}`);
-    const value = msg.value as IFloodDataMessage;
-    if (this.processed.indexOf(value.timestamp) >= 0) {
-      log.warn(`Already processed ${value.timestamp}`);
-      return;
-    } else {
-      this.processed.push(value.timestamp);
-    }
     if (!this.hasScenario(value.id)) this.initNewScenario(value.id);
-    this.inputLayers[value.id].push(value);
-    this.checkFinished(value.id);
+    this.inputLayers[value.id][value.simulator].push(value);
+    this.checkFinished(value.id, value.simulator, value.isFinal);
   }
 
   public processAllMessages(id: string) {
-    const floodLayers = this.inputLayers[id].sort((a, b) => a.timestamp - b.timestamp);
-    floodLayers.forEach(flood => {
+    const floodLayers = this.inputLayers[id][NAPConverter.id].sort((a, b) => a.timestamp - b.timestamp);
+    const powerLayers = this.inputLayers[id][ElectricitySim.id].sort((a, b) => a.timestamp - b.timestamp);
+    floodLayers.forEach((flood, index) => {
       this.processFloodLayer(flood, (result: FeatureCollection) => {
         log.info(`Processed ${flood.id} at ${flood.timestamp}`);
-        const powerResult: IFloodDataMessage = {id: flood.id, timestamp: flood.timestamp, data: JSON.stringify(result)};
-        this.sendData(CARE_TOPIC, powerResult, (err, data) => {
-          this.sentUpdateCount[flood.id].count += 1;
-          if (this.receivedUpdateCount[flood.id].finished === true && this.receivedUpdateCount[flood.id].count === this.sentUpdateCount[flood.id].count) {
-            this.sendScenarioUpdate(flood.id, CareObjectSim.id, SimStatus.FINISHED);
-          }
+        const powerLayer = powerLayers[index + 1];
+        this.processPowerLayer(powerLayer, result, (result: FeatureCollection) => {
+          const careResult: IChainDataMessage = {id: flood.id, simulator: CareObjectSim.id, isFinal: flood.isFinal, timestamp: flood.timestamp, data: JSON.stringify(result)};
+          log.info(`Care features failed: ${result.features.length}`);
+          this.outputLayers[flood.id].push(careResult);
+          this.sendData(CHAIN_TOPIC, careResult, (err, data) => {});
         });
       });
     });
   }
 
-  public processFloodLayer(msg: IFloodDataMessage, callback: (result: FeatureCollection) => void) {
+  public processPowerLayer(msg: IChainDataMessage, prevResult: FeatureCollection, callback: (result: FeatureCollection) => void) {
+    const powerLayer = msg.data;
+    if (!powerLayer) {
+      log.warn('No powerLayer received');
+      return callback(GeoExtensions.createFeatureCollection([]));
+    }
+    // Find the previous object states
+    var careLayer = _.find(this.outputLayers[msg.id].sort((a, b) => a.timestamp - b.timestamp), t => +t.timestamp < msg.timestamp);
+    if (!careLayer) {
+      log.warn(`No careLayer found for timestamp ${msg.timestamp}`);
+      return callback(GeoExtensions.createFeatureCollection([]));
+    }
+    log.info(`Found previous care objects at t=${careLayer.timestamp} of ${_.size(this.outputLayers)} layers`);
+
+    // Calculate and publish the effects of the flooding update
+    var failedObjects: IChangeEvent[] = [];
+    var features = JSON.parse(careLayer.data).features;
+    log.info(`Care features before: ${features.length}`);
+    failedObjects = this.blackout(powerLayer, careLayer.id, features, msg.timestamp);
+    const newCareLayer: IChainDataMessage = {id: msg.id, simulator: CareObjectSim.id, isFinal: msg.isFinal, timestamp: msg.timestamp, data: JSON.stringify(GeoExtensions.createFeatureCollection(features))};
+    // this.outputLayers[msg.id].push(newCareLayer);
+    log.info(`Care features failed due to blackout: ${failedObjects.length}, Care features after: ${features.length}`);
+    callback(GeoExtensions.createFeatureCollection(failedObjects.map(fo => fo.value)));
+  }
+
+  public processFloodLayer(msg: IChainDataMessage, callback: (result: FeatureCollection) => void) {
     const floodLayer = msg.data;
     if (!floodLayer) {
       log.warn('No floodlayer received');
@@ -144,17 +149,11 @@ export class CareObjectSim extends Simulator {
     // Calculate and publish the effects of the flooding update
     var failedObjects: IChangeEvent[] = [];
     var features = JSON.parse(goLayer.data).features;
-    log.info(`Power features before: ${features.length}`);
+    log.info(`Care features before: ${features.length}`);
     failedObjects = this.flooding(floodLayer, goLayer.id, features);
-    // failedObjects = this.updatePowerSupplyAreas(failedObjects, features);
-    this.inputLayers[msg.id][msg.timestamp] = goLayer;
-    let newgoLayer: any = {};
-    newgoLayer.features = features;
-    newgoLayer.data = '';
-    newgoLayer.id = 'careObjects';
-    newgoLayer.title = 'Care objects';
-    this.sendScenarioUpdate(msg.id, CareObjectSim.id, SimStatus.UPDATE);
-    log.info(`Care features failed: ${failedObjects.length}, Care features after: ${features.length}`);
+    const newCareLayer: IChainDataMessage = {id: msg.id, simulator: CareObjectSim.id, isFinal: msg.isFinal, timestamp: msg.timestamp, data: JSON.stringify(GeoExtensions.createFeatureCollection(features))};
+    // this.outputLayers[msg.id].push(newCareLayer);
+    log.info(`Care features failed due to flood: ${failedObjects.length}, Care features after: ${features.length}`);
     callback(GeoExtensions.createFeatureCollection(failedObjects.map(fo => fo.value)));
   }
 }

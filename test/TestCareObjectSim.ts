@@ -1,12 +1,13 @@
 import {CareObjectSim} from '../src/simulators/CareObjectSim/CareObjectSim';
 import {expect} from 'chai';
 import {mock, when, anyString, anything, anyFunction, instance, spy, verify} from 'ts-mockito';
-import {TEST_BED_OPTS, TEST_DATA_FOLDER, DEMO_SCENARIO, FLOOD_DATA_INITIAL, FLOOD_DATA_FINAL, WRITE_OUTPUT, NAP_DATA_INITIAL, NAP_DATA_FINAL} from '.';
+import {TEST_BED_OPTS, TEST_DATA_FOLDER, DEMO_SCENARIO, FLOOD_DATA_INITIAL, FLOOD_DATA_FINAL, WRITE_OUTPUT, NAP_DATA_INITIAL, NAP_DATA_FINAL, POWER_DATA_INITIAL, POWER_DATA_FINAL, POWER_DATA_UPDATE} from '.';
 import {IAdapterMessage} from 'node-test-bed-adapter';
 import {IChainScenario, SimStatus} from '../src/models/schemas';
 import {FloodSim} from '../src/simulators/FloodSim/FloodSim';
-import {IFloodDataMessage} from '../src/models/Interfaces';
+import {IChainDataMessage} from '../src/models/Interfaces';
 import {NAPConverter} from '../src/simulators/NAPConverter/NAPConverter';
+import { ElectricitySim } from '../src/simulators/ElectricitySim/ElectricitySim';
 
 // Creating mock
 // const mockSim: Simulator = mock(Simulator);
@@ -40,45 +41,45 @@ describe('CareObjectSim', () => {
 
   describe('process scenario', () => {
     it('should convert a scenario', () => {
-      const initMsg: IAdapterMessage = {
-        topic: 'test',
-        value: {simId: NAPConverter.id, simStatus: SimStatus.INITIAL, scenarioId: DEMO_SCENARIO} as IChainScenario,
-        key: 'testkey'
-      };
-      sim.processScenarioUpdate(initMsg);
-      expect(sim.hasScenario(DEMO_SCENARIO)).to.be.true;
-
-      const updateMsg: IAdapterMessage = {
-        topic: 'test',
-        value: {simId: NAPConverter.id, simStatus: SimStatus.UPDATE, scenarioId: DEMO_SCENARIO} as IChainScenario,
-        key: 'testkey'
-      };
-      sim.processScenarioUpdate(updateMsg);
-
       const flood0: IAdapterMessage = {
         topic: 'test',
-        value: {id: DEMO_SCENARIO, timestamp: 0, data: NAP_DATA_INITIAL()} as IFloodDataMessage,
+        value: {id: DEMO_SCENARIO, simulator: NAPConverter.id, isFinal: false, timestamp: 0, data: NAP_DATA_INITIAL()} as IChainDataMessage,
         key: 'testkey'
       };
       sim.processMessage(flood0);
-
-      sim.processScenarioUpdate(updateMsg);
       expect(sim.hasScenario(DEMO_SCENARIO)).to.be.true;
 
       const flood60: IAdapterMessage = {
         topic: 'test',
-        value: {id: DEMO_SCENARIO, timestamp: 60 * 60 * 1000, data: NAP_DATA_FINAL()} as IFloodDataMessage,
+        value: {id: DEMO_SCENARIO, simulator: NAPConverter.id, isFinal: true, timestamp: 60 * 60 * 1000, data: NAP_DATA_INITIAL()} as IChainDataMessage,
         key: 'testkey'
       };
       sim.processMessage(flood60);
 
-      const finalMsg: IAdapterMessage = {
+      const power_1: IAdapterMessage = {
         topic: 'test',
-        value: {simId: NAPConverter.id, simStatus: SimStatus.FINISHED, scenarioId: DEMO_SCENARIO} as IChainScenario,
+        value: {id: DEMO_SCENARIO, simulator: ElectricitySim.id, isFinal: false, timestamp: -1, data: POWER_DATA_INITIAL()} as IChainDataMessage,
         key: 'testkey'
       };
-      sim.processScenarioUpdate(finalMsg);
-      verify(spiedSim.sendData(anyString(), anything(), anything())).times(5);
+      sim.processMessage(power_1);
+      expect(sim.hasScenario(DEMO_SCENARIO)).to.be.true;
+
+      const power0: IAdapterMessage = {
+        topic: 'test',
+        value: {id: DEMO_SCENARIO, simulator: ElectricitySim.id, isFinal: false, timestamp: 0, data: POWER_DATA_UPDATE()} as IChainDataMessage,
+        key: 'testkey'
+      };
+      sim.processMessage(power0);
+      expect(sim.hasScenario(DEMO_SCENARIO)).to.be.true;
+
+      const power60: IAdapterMessage = {
+        topic: 'test',
+        value: {id: DEMO_SCENARIO, simulator: ElectricitySim.id, isFinal: true, timestamp: 60 * 60 * 1000, data: POWER_DATA_FINAL()} as IChainDataMessage,
+        key: 'testkey'
+      };
+      sim.processMessage(power60);
+
+      verify(spiedSim.sendData(anyString(), anything(), anything())).times(3);
     });
   });
 });

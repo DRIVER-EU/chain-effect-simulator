@@ -19,6 +19,11 @@
       "doc": "The time in number of milliseconds from the start"
     },
     {
+      "name": "isFinal",
+      "type": "boolean",
+      "doc": "This is the final message in the scenario"
+    },
+    {
       "name": "data",
       "type": "string",
       "doc": "The data"

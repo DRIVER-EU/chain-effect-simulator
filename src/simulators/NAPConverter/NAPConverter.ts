@@ -6,7 +6,7 @@ import Conrec = require('./conrec');
 import _ = require('underscore');
 import {FeatureCollection, Feature, Polygon} from 'geojson';
 import {Dictionary} from '../../test-bed/consumer';
-import {IIsoGrid, IFeatureCollectionDescription, IFloodDataMessage, IChainUpdate} from '../../models/Interfaces';
+import {IIsoGrid, IFeatureCollectionDescription, IChainDataMessage, IChainUpdate} from '../../models/Interfaces';
 import {Logger, IAdapterMessage, ITestBedOptions} from 'node-test-bed-adapter';
 import {Simulator} from '../Simulator';
 import {FloodSim} from '../FloodSim/FloodSim';
@@ -14,15 +14,14 @@ import {IsoLines} from '../../utils/Isolines';
 
 const log = Logger.instance;
 
-const FLOOD_TOPIC = process.env.FLOOD_TOPIC || 'chain_flood';
-const WATERHEIGHT_TOPIC = process.env.WATERHEIGHT_TOPIC || 'chain_waterheight';
+const CHAIN_TOPIC = process.env.CHAIN_TOPIC || 'chain';
 
 const dependentSims = [FloodSim.id];
 
 /**
  * NAPConverter.
  *
- * It listens to the chain_flood topic. Grid data that is published with absolute water levels, will be converted to relative water height.
+ * It listens to the chain topic. Grid data that is published with absolute water levels, will be converted to relative water height.
  * The first grid should have timestamp 0, as it will be used as reference value for converting absolute to relative levels.
  */
 export class NAPConverter extends Simulator {
@@ -31,7 +30,7 @@ export class NAPConverter extends Simulator {
   private baseGrid: {[id: string]: number[][]} = {};
   private receivedUpdateCount: Dictionary<IChainUpdate> = {};
   private sentUpdateCount: Dictionary<IChainUpdate> = {};
-  private inputLayers: Dictionary<IFloodDataMessage[]> = {};
+  private inputLayers: Dictionary<IChainDataMessage[]> = {};
 
   private header = '';
   private processed: number[] = [];
@@ -41,11 +40,11 @@ export class NAPConverter extends Simulator {
   }
 
   public getConsumerTopics(): string[] {
-    return [FLOOD_TOPIC];
+    return [CHAIN_TOPIC];
   }
 
   public getProducerTopics(): string[] {
-    return [WATERHEIGHT_TOPIC];
+    return [CHAIN_TOPIC];
   }
 
   public hasScenario(scenarioId: string) {
@@ -59,45 +58,11 @@ export class NAPConverter extends Simulator {
     this.inputLayers[scenarioId] = [];
   }
 
-  public processScenarioUpdate(msg: IAdapterMessage) {
-    const value = msg.value as IChainScenario;
-    if (dependentSims.indexOf(value.simId) >= 0) {
-      log.info(`NAPConverter processes scenarioupdate: ${JSON.stringify(msg).substr(0, 500)}`);
-      if (value.simStatus === SimStatus.INITIAL) {
-        this.initNewScenario(value.scenarioId);
-      }
-      if (value.simStatus === SimStatus.UPDATE) {
-        this.initNewScenario(value.scenarioId);
-        this.receivedUpdateCount[value.scenarioId].count += 1;
-        this.checkFinished(value.scenarioId);
-      }
-      if (value.simStatus === SimStatus.FINISHED) {
-        this.initNewScenario(value.scenarioId);
-        this.receivedUpdateCount[value.scenarioId].finished = true;
-        this.checkFinished(value.scenarioId);
-      }
-    }
-  }
-
-  private checkFinished(id: string) {
-    log.debug(`checkFinished ${this.receivedUpdateCount[id].finished}. ${this.sentUpdateCount[id].count}, ${this.receivedUpdateCount[id].count}`);
-    if (this.receivedUpdateCount[id].finished === true && this.receivedUpdateCount[id].count > 0 && this.receivedUpdateCount[id].count === this.sentUpdateCount[id].count) {
-      this.finish(id);
-    }
-  }
-
-  private finish(id: string) {
-    const f = async id => {
-      await this.sleep(5000);
-      this.sendScenarioUpdate(id, NAPConverter.id, SimStatus.FINISHED, () => {
-        log.info('NAPConverter finished');
-      });
-    };
-  }
-
   public processMessage(msg: IAdapterMessage) {
+    const value = msg.value as IChainDataMessage;
+    if (dependentSims.indexOf(value.simulator) < 0) return;
+    if (!this.hasScenario(value.id)) this.initNewScenario(value.id);
     log.info(`NAPConverter processes msg: ${JSON.stringify(msg).substr(0, 500)}`);
-    const value = msg.value as IFloodDataMessage;
     if (this.processed.indexOf(value.timestamp) >= 0) {
       log.warn(`Already processed ${value.timestamp}`);
       return;
@@ -110,28 +75,18 @@ export class NAPConverter extends Simulator {
         return;
       }
       log.info(`Converted ${value.id}`);
-      const napResult: IFloodDataMessage = {id: value.id, timestamp: value.timestamp, data: result};
-      this.sendData(WATERHEIGHT_TOPIC, napResult, (err, data) => {
-        log.debug(`sentUpdateCount ${this.sentUpdateCount[value.id].count}. += 1 ts:${value.timestamp}`);
-        this.sentUpdateCount[value.id].count += 1;
-        this.checkFinished(value.id);
-      });
+      const napResult: IChainDataMessage = {id: value.id, simulator: NAPConverter.id, isFinal: value.isFinal, timestamp: value.timestamp, data: result};
+      this.sendData(CHAIN_TOPIC, napResult, (err, data) => {});
     });
   }
 
-  public async convertLayer(msg: IFloodDataMessage, callback: (result?: string) => void) {
+  public async convertLayer(msg: IChainDataMessage, callback: (result?: string) => void) {
     log.info(`NAPConverter: process timestamp ${msg.timestamp}`);
     if (msg.timestamp === 0) {
-      // if (this.baseGrid.hasOwnProperty(msg.id)) {
-      //   log.error('NAPConverter: baseGrid already present!!!!');
-      //   return callback();
-      // }
-      this.sendScenarioUpdate(msg.id, NAPConverter.id, SimStatus.INITIAL, () => {
-        this.createBaseHeightMap(msg.id, msg.data);
-        log.info(`Created basegrid for ${msg.id}`);
-        let result: IIsoGrid = this.normalizeData(msg.data, this.baseGrid[msg.id]);
-        return callback(result.grid);
-      });
+      this.createBaseHeightMap(msg.id, msg.data);
+      log.info(`Created basegrid for ${msg.id}`);
+      let result: IIsoGrid = this.normalizeData(msg.data, this.baseGrid[msg.id]);
+      return callback(result.grid);
     }
     if (!this.baseGrid.hasOwnProperty(msg.id)) {
       for (let i = 0; i <= 10; i++) {
@@ -149,9 +104,7 @@ export class NAPConverter extends Simulator {
       }
     }
     let result: IIsoGrid = this.normalizeData(msg.data, this.baseGrid[msg.id]);
-    this.sendScenarioUpdate(msg.id, NAPConverter.id, SimStatus.UPDATE, () => {
-      callback(result.grid);
-    });
+    callback(result.grid);
   }
 
   private createBaseHeightMap(id: string, data: string) {

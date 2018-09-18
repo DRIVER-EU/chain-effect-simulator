@@ -34,7 +34,7 @@ describe('FloodSim', () => {
       sim.setFiles([path.join('.', 'test', 'testdata', 'demo', 'waterlevel_0min.asc'), path.join('.', 'test', 'testdata', 'demo', 'waterlevel_60min.asc')]);
       sim.setInterval(60 * 60 * 1000);
       await sim.publishFlood(true);
-      verify(spiedSim.sendData(anyString(), anything(), anything())).times(6);
+      verify(spiedSim.sendData(anyString(), anything(), anything())).times(2);
     });
   });
 });

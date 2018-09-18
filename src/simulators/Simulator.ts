@@ -3,9 +3,10 @@ import {IAdapterMessage, ITestBedOptions, Logger} from 'node-test-bed-adapter';
 import {ConsumerProducer} from '../test-bed/consumerproducer';
 import fs from 'fs';
 import path from 'path';
-import {FeatureCollection, Feature, Point, LineString} from 'geojson';
+import {FeatureCollection, Feature, Point, LineString, MultiPolygon, GeometryObject} from 'geojson';
 import {IChangeEvent, ChangeType, InfrastructureState, FailureMode} from '../models/Interfaces';
 import {IsoLines, IGridDataSourceParameters} from '../utils/Isolines';
+import {GeoExtensions} from '../utils/GeoExtensions';
 
 const SCENARIO_TOPIC = process.env.SCENARIO_TOPIC || 'chain_scenario';
 const log = Logger.instance;
@@ -18,6 +19,7 @@ export abstract class Simulator {
   public get isConnected(): boolean {
     return this._isConnected;
   }
+  private totalBlackoutAreas: {[id: string]: {[time: number]: MultiPolygon}} = {};
 
   constructor(dataFolder: string, id: string, options: ITestBedOptions, whenReady?: Function) {
     this.dataFolder = dataFolder;
@@ -48,7 +50,6 @@ export abstract class Simulator {
     consumerTopics.forEach(topic => {
       this.consumerProducer.addHandler(topic, msg => this.processMessage(msg));
     });
-    this.consumerProducer.addHandler(SCENARIO_TOPIC, msg => this.processScenarioUpdate(msg));
     log.info(`Registered ${consumerTopics.length} handlers for ${id}`);
     this._isConnected = true;
   }
@@ -66,7 +67,6 @@ export abstract class Simulator {
     this.consumerProducer.sendData(topic, data, cb);
   }
 
-  abstract processScenarioUpdate(msg: IAdapterMessage);
   abstract processMessage(msg: IAdapterMessage);
   abstract getConsumerTopics(): string[];
   abstract getProducerTopics(): string[];
@@ -75,6 +75,62 @@ export abstract class Simulator {
   protected flooding(layer: string, objectsLayerId: string, objects: Feature[]): IChangeEvent[] {
     var failedObjects = this.checkWaterLevel(layer, objectsLayerId, objects);
     return failedObjects;
+  }
+
+  protected blackout(powerLayer: string, objectsLayerId: string, objects: Feature[], time: number): IChangeEvent[] {
+    var failedObjects = this.checkBlackoutAreas(powerLayer, objectsLayerId, objects, time);
+    return failedObjects;
+  }
+
+  protected checkBlackoutAreas(layer: string, objectsLayerId: string, objects: Feature[], time: number): IChangeEvent[] {
+    const powerLayer = JSON.parse(layer);
+    if (!this.totalBlackoutAreas.hasOwnProperty(powerLayer.id)) {
+      this.totalBlackoutAreas[powerLayer.id] = {};
+    }
+    if (!this.totalBlackoutAreas[powerLayer.id].hasOwnProperty(time)) {
+      this.totalBlackoutAreas[powerLayer.id][time] = this.concatenateBlackoutAreas(powerLayer);
+    }
+    let totalBlackoutArea = this.totalBlackoutAreas[powerLayer.id][time];
+    if (totalBlackoutArea && totalBlackoutArea.coordinates.length <= 0) return [];
+    var failedObjects: IChangeEvent[] = [];
+
+    // Check if HO is in blackout area
+    for (let i = 0; i < objects.length; i++) {
+      var ho = objects[i];
+      var state = this.getFeatureState(ho);
+      if (state === InfrastructureState.Failed) {
+        continue;
+      }
+      var inBlackout = GeoExtensions.pointInsideMultiPolygon((<Feature<Point>>ho).geometry.coordinates, totalBlackoutArea.coordinates);
+      if (inBlackout) {
+        this.setFeatureState(ho, objectsLayerId, InfrastructureState.Failed, FailureMode.NoBackupPower, false);
+        failedObjects.push(<IChangeEvent>{
+          id: ho.id,
+          value: ho,
+          type: ChangeType.Update
+        });
+      }
+    }
+    return failedObjects;
+  }
+
+  protected concatenateBlackoutAreas(layer: FeatureCollection): MultiPolygon {
+    var totalArea: MultiPolygon = {
+      type: 'MultiPolygon',
+      coordinates: []
+    };
+    if (!layer || !layer.features) return totalArea;
+    var count = 0;
+    layer.features.forEach(f => {
+      if (f.properties && f.properties.hasOwnProperty('featureTypeId') && f.properties['featureTypeId'] === 'AffectedArea') {
+        if (f.geometry.type === 'Polygon') {
+          totalArea.coordinates.push(f.geometry.coordinates);
+          count += 1;
+        }
+      }
+    });
+    log.info(`Concatenated ${count} blackout areas`);
+    return totalArea;
   }
 
   public async sleep(ms) {
@@ -159,6 +215,6 @@ export abstract class Simulator {
     feature.properties['failureMode'] = failureMode;
     if (!publish) return;
     // Publish feature update
-    // this.updateFeature(layerId, feature, <csweb.ApiMeta>{}, () => {});
+    // this.updateFeature(layerId, feature, <ApiMeta>{}, () => {});
   }
 }

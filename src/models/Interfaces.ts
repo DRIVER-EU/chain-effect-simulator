@@ -56,15 +56,11 @@ export interface IFeatureCollectionDescription {
   desc: string;
 }
 
-export interface IFloodDataMessage {
+export interface IChainDataMessage {
   id: string;
+  simulator: string;
   timestamp: number;
-  data: string;
-}
-
-export interface IFloodDataMessage {
-  id: string;
-  timestamp: number;
+  isFinal: boolean;
   data: string;
 }
 
