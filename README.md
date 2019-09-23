@@ -20,4 +20,12 @@ Run the simulation using the command:
 ```
 npm run start
 ```
+It will listen to the test-bed time, and start a flood when the time starts running.
+
+
+To run the simulation in batch mode, use the command:
+```
+npm run start-batch
+```
+This will immediately start publishing the entire flood, without listening to the time-service.
 

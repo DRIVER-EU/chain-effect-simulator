@@ -9,7 +9,8 @@
     "removeComments": false,
     "noLib": false,
     "outDir": "dist",
-    "sourceMap": true
+    "sourceMap": true,
+    "experimentalDecorators": true
   },
   "include": [
     "main.ts",

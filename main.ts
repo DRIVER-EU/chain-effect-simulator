@@ -1,6 +1,5 @@
 import dotenv from 'dotenv';
 dotenv.config();
-import Winston = require('winston');
 import * as fs from 'fs';
 import * as path from 'path';
 import {NAPConverter} from './src/simulators/NAPConverter/NAPConverter';
@@ -8,20 +7,12 @@ import {ITestBedOptions, LogLevel, Logger} from 'node-test-bed-adapter';
 import * as StaticTestBedConfig from './config/config.json';
 import {ElectricitySim} from './src/simulators/ElectricitySim/ElectricitySim';
 import {FloodSim} from './src/simulators/FloodSim/FloodSim';
-import {ConsumerProducer} from './src/test-bed/consumerproducer';
 import {CareObjectSim} from './src/simulators/CareObjectSim/CareObjectSim';
-import {start} from 'repl';
 
 const SIM_DATA_FOLDER = path.join('data', 'layers');
-
-// INIT LOGGER
-Winston.remove(Winston.transports.Console);
-Winston.add(Winston.transports.Console, <Winston.ConsoleTransportOptions>{
-  colorize: true,
-  label: 'chain-effect-sim',
-  prettyPrint: true
-});
+const BATCH_RUN_MODE = process.argv.some(val => val === '-b' || val === '--batch');
 const log = Logger.instance;
+log.info(`Start chain-effect-simulator. (batch mode=${BATCH_RUN_MODE})`);
 
 // READ (TEST-BED) CONFIGURATION FILE
 var DynamicTestBedConfig;
@@ -43,35 +34,47 @@ testBedOptions.logging = {
   logFile: 'log.txt'
 };
 
-const startFloodSim = () => {
-  log.info('Preparing flood...');
-  const floodSim = new FloodSim(SIM_DATA_FOLDER, clone(testBedOptions));
-  floodSim.setFiles(['./data/demo/waterlevel_0min_40x40m.asc', './data/demo/waterlevel_60min_40x40m.asc', './data/demo/waterlevel_120min_40x40m.asc', './data/demo/waterlevel_240min_40x40m.asc', './data/demo/waterlevel_360min_40x40m.asc']);
-  floodSim.setInterval(60 * 60 * 1000);
-  const startFlood = async () => {
+const startFlood = async (floodSim: FloodSim, startImmediately = false) => {
+  if (!startImmediately) {
     do {
       await floodSim.sleep(500);
     } while (!floodSim.isConnected);
     log.info('Publishing flood');
     floodSim.publishFlood();
-  };
-  startFlood();
+  }
+};
+
+const startFloodSim = cb => {
+  log.info('Preparing flood...');
+  const floodSim = new FloodSim(SIM_DATA_FOLDER, clone(testBedOptions), () => {
+    floodSim.setFiles(['./data/demo/waterlevel_0min_40x40m.asc', './data/demo/waterlevel_60min_40x40m.asc', './data/demo/waterlevel_120min_40x40m.asc', './data/demo/waterlevel_240min_40x40m.asc', './data/demo/waterlevel_360min_40x40m.asc']);
+    floodSim.setInterval(60 * 60 * 1000);
+    cb(floodSim);
+  });
 };
 
 const registerSims = () => {
   log.info('Registering simulators...');
-  testBedOptions.autoRegisterSchemas = false;
+  testBedOptions.autoRegisterSchemas = true;
 
   // REGISTER SIMULATORS
   var napConverter, electricitySim, careSim;
   napConverter = new NAPConverter(SIM_DATA_FOLDER, clone(testBedOptions), () => {
+    testBedOptions.autoRegisterSchemas = false; //only register schemas once
     electricitySim = new ElectricitySim(SIM_DATA_FOLDER, clone(testBedOptions), () => {
       careSim = new CareObjectSim(SIM_DATA_FOLDER, clone(testBedOptions), () => {
-        startFloodSim();
+        // when all simulators are created, start the flood
+        startFloodSim(floodSim => {
+          if (BATCH_RUN_MODE) {
+            startFlood(floodSim, true);
+          } else {
+            console.log(`Wait for simulation time to start running...`);
+          }
+        });
       });
     });
   });
 };
 
-testBedOptions.autoRegisterSchemas = true;
-var temp = new ConsumerProducer(clone(testBedOptions), registerSims);
+// Register the simulators
+registerSims();

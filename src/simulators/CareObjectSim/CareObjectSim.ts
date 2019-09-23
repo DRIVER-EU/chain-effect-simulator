@@ -1,7 +1,7 @@
 import {FeatureCollection, Feature, Polygon} from 'geojson';
-import {Dictionary} from '../../test-bed/consumer';
+import {Dictionary} from '../../test-bed/consumerproducer';
 import {IChainDataMessage, IChainUpdate, IChangeEvent, InfrastructureState, ChangeType} from '../../models/Interfaces';
-import {Logger, IAdapterMessage, ITestBedOptions, clone} from 'node-test-bed-adapter';
+import {Logger, IAdapterMessage, ITestBedOptions, clone, ITiming, TimeState} from 'node-test-bed-adapter';
 import {Simulator} from '../Simulator';
 import {NAPConverter} from '../NAPConverter/NAPConverter';
 import fs from 'fs';
@@ -34,6 +34,17 @@ export class CareObjectSim extends Simulator {
 
   constructor(dataFolder: string, options: ITestBedOptions, whenReady?: Function) {
     super(dataFolder, CareObjectSim.id, options, whenReady);
+    this.readDataFolder();
+  }
+
+  private reset() {
+    this.receivedUpdateCount = {};
+    this.sentUpdateCount = {};
+    delete this.baseLayer;
+    this.inputLayers = {};
+    this.outputLayers = {};
+    this.finished = {};
+    log.warn(`${CareObjectSim.id} has been reset`);
     this.readDataFolder();
   }
 
@@ -88,6 +99,13 @@ export class CareObjectSim extends Simulator {
     if (!this.hasScenario(value.id)) this.initNewScenario(value.id);
     this.inputLayers[value.id][value.simulator].push(value);
     this.checkFinished(value.id, value.simulator, value.isFinal);
+  }
+
+  public processTimeMessage(msg: ITiming) {
+    log.info(`CareObjectSim processes time-msg: ${JSON.stringify(msg).substr(0, 500)}`);
+    if (msg.state === TimeState.Stopped) {
+      this.reset();
+    }
   }
 
   public processAllMessages(id: string) {

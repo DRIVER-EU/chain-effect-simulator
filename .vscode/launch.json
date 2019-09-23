@@ -7,12 +7,17 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "Launch Program",
-      "program": "${workspaceFolder}\\dist\\main.js",
-      "preLaunchTask": "tsc: build - tsconfig.json",
+      "name": "Launch Chain Sim",
+      "cwd": "${workspaceFolder}",
+      "program": "${workspaceFolder}\\main.ts",
+      "args": [],
+      "env": {
+        "USE_ISOLINES": "true"
+      },
       "outFiles": [
-        "${workspaceFolder}/dist/**/*.js"
-      ]
+        "${workspaceFolder}/dist/**/*"
+      ],
+      "console": "integratedTerminal"
     },
     {
       "type": "node",

@@ -1,5 +1,5 @@
 import {IChainScenario, SimStatus} from '../models/schemas';
-import {IAdapterMessage, ITestBedOptions, Logger} from 'node-test-bed-adapter';
+import {IAdapterMessage, ITestBedOptions, Logger, ITiming} from 'node-test-bed-adapter';
 import {ConsumerProducer} from '../test-bed/consumerproducer';
 import fs from 'fs';
 import path from 'path';
@@ -8,7 +8,7 @@ import {IChangeEvent, ChangeType, InfrastructureState, FailureMode} from '../mod
 import {IsoLines, IGridDataSourceParameters} from '../utils/Isolines';
 import {GeoExtensions} from '../utils/GeoExtensions';
 
-const SCENARIO_TOPIC = process.env.SCENARIO_TOPIC || 'chain_scenario';
+export const SCENARIO_TOPIC = process.env.SCENARIO_TOPIC || 'chain_scenario';
 const log = Logger.instance;
 
 export abstract class Simulator {
@@ -46,6 +46,7 @@ export abstract class Simulator {
   }
 
   private async initialize(id: string) {
+    this.consumerProducer.addTimeHandler(msg => this.processTimeMessage(msg));
     const consumerTopics = this.getConsumerTopics();
     consumerTopics.forEach(topic => {
       this.consumerProducer.addHandler(topic, msg => this.processMessage(msg));
@@ -68,6 +69,7 @@ export abstract class Simulator {
   }
 
   abstract processMessage(msg: IAdapterMessage);
+  abstract processTimeMessage(msg: ITiming);
   abstract getConsumerTopics(): string[];
   abstract getProducerTopics(): string[];
 

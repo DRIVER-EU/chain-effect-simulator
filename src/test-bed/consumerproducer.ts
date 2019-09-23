@@ -3,67 +3,69 @@
 // const kafkaLogging = require('kafka-node/logging');
 // kafkaLogging.setLoggerProvider(consoleLoggerProvider);
 
-import {Message, OffsetFetchRequest, ProduceRequest} from 'kafka-node';
-import {TestBedAdapter, Logger, LogLevel, ITopicMetadataItem, IAdapterMessage, ITestBedOptions} from 'node-test-bed-adapter';
+import {ProduceRequest} from 'kafka-node';
+import {TestBedAdapter, Logger, IAdapterMessage, ITestBedOptions, ITiming} from 'node-test-bed-adapter';
 const log = Logger.instance;
 const stringify = (m: string | Object) => (typeof m === 'string' ? m : JSON.stringify(m, null, 2)).substr(0, 200);
-const stringifyShort = (m: string | Object) => (typeof m === 'string' ? m : JSON.stringify(m)).substr(0, 200);
 
 export interface Dictionary<T> {
   [key: string]: T;
 }
 
 export type MessageHandlerFunc = (msg: IAdapterMessage) => void;
+export type TimerHandlerFunc = (msg: ITiming) => void;
 
 export class ConsumerProducer {
   private adapter: TestBedAdapter;
-  private handlers: Dictionary<MessageHandlerFunc> = {};
-  private isReady: boolean = false;
+  private handlers: Dictionary<MessageHandlerFunc[]> = {};
+  private timeHandler?: TimerHandlerFunc;
 
   constructor(options: ITestBedOptions, whenReady?: Function) {
     this.adapter = new TestBedAdapter(options);
     this.adapter.on('ready', () => {});
-    this.adapter.on('error', err => log.error(`Consumer received an error: ${err}`));
+    this.adapter.on('error', err => log.error(`Consumer received an error: ${err.toString().substr(0, 500)}`));
     this.adapter
       .connect()
       .then(() => {
         this.initialize();
-        this.isReady = true;
         log.info(`ConsumerProducer ${options.clientId} is connected`);
         if (whenReady) whenReady();
       })
-      .catch(e => log.warn(e));
+      .catch(e => {
+        log.warn(e);
+        log.warn(e.toString().slice(0, 500));
+      });
   }
 
   public stop() {
     this.adapter.close();
   }
 
+  public addTimeHandler(cb: TimerHandlerFunc) {
+    this.timeHandler = cb;
+  }
+
   public addHandler(topic: string, cb: MessageHandlerFunc) {
-    this.handlers[topic.toLowerCase()] = cb;
+    this.addOrCreateHandler(this.handlers, topic, cb);
     log.debug(`Add handler for topic ${topic.toLowerCase()} for ${this.adapter.configuration.clientId}`);
   }
 
-  // public async addConsumerTopics(topics: string[]) {
-  //   const topicRequests: OffsetFetchRequest[] = topics.map(t => {
-  //     return {topic: t, offset: -1};
-  //   });
-  //   await this.adapter.addConsumerTopics(topicRequests, true);
-  // }
-
-  // public async addProducerTopics(topics: string[]) {
-  //   if (!this.isReady) {
-  //     log.warn(`Producer not ready yet`);
-  //     return;
-  //   }
-  //   await this.adapter.addProducerTopics(topics);
-  // }
+  private addOrCreateHandler(handlers: Dictionary<any>, topic: string, cb: MessageHandlerFunc) {
+    if (!handlers.hasOwnProperty(topic.toLowerCase())) {
+      handlers[topic.toLowerCase()] = [cb];
+    } else {
+      handlers[topic.toLowerCase()].push(cb);
+    }
+  }
 
   private initialize() {
     this.subscribe();
   }
 
   private subscribe() {
+    this.adapter.on('time', message => {
+      this.handleTimeMessage(message);
+    });
     this.adapter.on('message', message => {
       this.handleMessage(message);
     });
@@ -82,6 +84,7 @@ export class ConsumerProducer {
     this.adapter.send(payloads, (error, data) => {
       if (error) {
         log.error(error);
+        log.error(error.toString().slice(0, 500));
       }
       if (data) {
         log.info(data);
@@ -90,11 +93,18 @@ export class ConsumerProducer {
     });
   }
 
+  private handleTimeMessage(message: ITiming) {
+    log.info(`Received timing message: State ${message.state}, Time: ${message.trialTime} (elapsed: ${message.timeElapsed})`);
+    if (this.timeHandler) {
+      this.timeHandler(message);
+    }
+  }
+
   private handleMessage(message: IAdapterMessage) {
     switch (message.topic.toLowerCase()) {
       case 'system_heartbeat':
         log.debug(`Received heartbeat message with key ${stringify(message.key)}: ${stringify(message.value)}`);
-        log.info(`Received heartbeat message with value ${stringifyShort(message.value)}`);
+        // log.info(`Received heartbeat message with value ${stringifyShort(message.value)}`);
         break;
       case 'system_configuration':
         log.info(`Received configuration message with key ${stringify(message.key)}: ${stringify(message.value)}`);
@@ -104,14 +114,20 @@ export class ConsumerProducer {
           // log.info(`Received unhandled ${message.topic} message with key ${stringify(message.key)}`);
           // log.debug(`Available handlers: ${stringify(Object.keys(this.handlers))}`);
         } else {
-          this.callHandlerFunction(message);
+          this.callHandlerFunctions(message);
         }
         break;
     }
   }
 
-  private callHandlerFunction(message: IAdapterMessage) {
+  private callHandlerFunctions(message: IAdapterMessage) {
     log.debug(`Received ${message.topic} with key ${stringify(message.key)} and val ${stringify(message.value)}`);
-    this.handlers[message.topic.toLowerCase()](message);
+    if (this.handlers.hasOwnProperty(message.topic.toLowerCase())) {
+      this.handlers[message.topic.toLowerCase()].forEach(cb => {
+        cb(message);
+      });
+    } else {
+      log.warn(`Cannot handle ${message.topic}-message`);
+    }
   }
 }

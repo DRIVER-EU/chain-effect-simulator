@@ -1,13 +1,12 @@
 import {IChainScenario, SimStatus} from '../../models/schemas';
 import dotenv from 'dotenv';
 dotenv.config();
-import Winston = require('winston');
 import Conrec = require('./conrec');
 import _ = require('underscore');
 import {FeatureCollection, Feature, Polygon} from 'geojson';
-import {Dictionary} from '../../test-bed/consumer';
+import {Dictionary} from '../../test-bed/consumerproducer';
 import {IIsoGrid, IFeatureCollectionDescription, IChainDataMessage, IChainUpdate} from '../../models/Interfaces';
-import {Logger, IAdapterMessage, ITestBedOptions} from 'node-test-bed-adapter';
+import {Logger, IAdapterMessage, ITestBedOptions, ITiming, TimeState} from 'node-test-bed-adapter';
 import {Simulator} from '../Simulator';
 import {FloodSim} from '../FloodSim/FloodSim';
 import {IsoLines} from '../../utils/Isolines';
@@ -15,6 +14,7 @@ import {IsoLines} from '../../utils/Isolines';
 const log = Logger.instance;
 
 const CHAIN_TOPIC = process.env.CHAIN_TOPIC || 'chain';
+const FLOOD_TOPIC = process.env.FLOOD_TOPIC || 'chain_flood';
 
 const dependentSims = [FloodSim.id];
 
@@ -39,12 +39,22 @@ export class NAPConverter extends Simulator {
     super(dataFolder, NAPConverter.id, options, whenReady);
   }
 
+  private reset() {
+    this.gridParams = {};
+    this.baseGrid = {};
+    this.receivedUpdateCount = {};
+    this.sentUpdateCount = {};
+    this.inputLayers = {};
+    this.processed.length = 0;
+    log.warn(`${NAPConverter.id} has been reset`);
+  }
+
   public getConsumerTopics(): string[] {
     return [CHAIN_TOPIC];
   }
 
   public getProducerTopics(): string[] {
-    return [CHAIN_TOPIC];
+    return [CHAIN_TOPIC, FLOOD_TOPIC];
   }
 
   public hasScenario(scenarioId: string) {
@@ -75,18 +85,28 @@ export class NAPConverter extends Simulator {
         return;
       }
       log.info(`Converted ${value.id}`);
-      const napResult: IChainDataMessage = {id: value.id, simulator: NAPConverter.id, isFinal: value.isFinal, timestamp: value.timestamp, data: result};
-      this.sendData(CHAIN_TOPIC, napResult, (err, data) => {});
+      const napGridResult: IChainDataMessage = {id: value.id, simulator: NAPConverter.id, isFinal: value.isFinal, timestamp: value.timestamp, data: result.grid};
+      this.sendData(CHAIN_TOPIC, napGridResult, (err, data) => {
+        const napFcResult: IChainDataMessage = {id: value.id, simulator: NAPConverter.id, isFinal: value.isFinal, timestamp: value.timestamp, data: JSON.stringify(result.iso)};
+        this.sendData(FLOOD_TOPIC, napFcResult, (err, data) => {});
+      });
     });
   }
 
-  public async convertLayer(msg: IChainDataMessage, callback: (result?: string) => void) {
+  public processTimeMessage(msg: ITiming) {
+    log.info(`NAPConverter processes time-msg: ${JSON.stringify(msg).substr(0, 500)}`);
+    if (msg.state === TimeState.Stopped) {
+      this.reset();
+    }
+  }
+
+  public async convertLayer(msg: IChainDataMessage, callback: (result?: IIsoGrid) => void) {
     log.info(`NAPConverter: process timestamp ${msg.timestamp}`);
     if (msg.timestamp === 0) {
       this.createBaseHeightMap(msg.id, msg.data);
       log.info(`Created basegrid for ${msg.id}`);
       let result: IIsoGrid = this.normalizeData(msg.data, this.baseGrid[msg.id]);
-      return callback(result.grid);
+      return callback(result);
     }
     if (!this.baseGrid.hasOwnProperty(msg.id)) {
       for (let i = 0; i <= 10; i++) {
@@ -104,7 +124,7 @@ export class NAPConverter extends Simulator {
       }
     }
     let result: IIsoGrid = this.normalizeData(msg.data, this.baseGrid[msg.id]);
-    callback(result.grid);
+    callback(result);
   }
 
   private createBaseHeightMap(id: string, data: string) {
@@ -156,11 +176,12 @@ export class NAPConverter extends Simulator {
     });
     var ftColl;
     if (process.env.USE_ISOLINES && process.env.USE_ISOLINES === 'true') {
+      log.info('USE_ISOLINES');
       ftColl = this.convertDataToIsoLines(grid).fc;
     } else {
       ftColl = this.convertDataToPolygonGrid(grid).fc;
     }
-    Winston.info(`# Contour features: ${ftColl.features.length}`);
+    log.info(`# Contour features: ${ftColl.features.length}`);
     return {
       iso: ftColl,
       grid: this.header + result.join('\n')
@@ -172,7 +193,8 @@ export class NAPConverter extends Simulator {
    */
   private convertDataToIsoLines(gridData: number[][]): IFeatureCollectionDescription {
     if (!_.isArray(gridData)) {
-      Winston.warn(`gridData is no array: ${gridData ? gridData.toString().slice(0, 10) : gridData}`);
+      log.warn(`gridData is no array`);
+      log.debug(`${gridData.toString().slice(0, 500)}`);
       return {
         fc: this.createFeatureCollection([]),
         desc: `gridData is no array`
@@ -186,8 +208,8 @@ export class NAPConverter extends Simulator {
       lon = this.gridParams.startLon,
       deltaLat = this.gridParams.deltaLat,
       deltaLon = this.gridParams.deltaLon;
-    var max = this.gridParams.maxThreshold,
-      min = this.gridParams.minThreshold;
+    var max = this.gridParams.maxThreshold || 5,
+      min = this.gridParams.minThreshold || 0;
 
     gridData = gridData.reverse();
     gridData.forEach(row => {
@@ -221,7 +243,7 @@ export class NAPConverter extends Simulator {
       isoLevels = [];
       var dl = (max - min) / nrIsoLevels;
       for (let l = min + dl / 2; l < max; l += dl) isoLevels.push(Math.round(l * 10) / 10); // round to nearest decimal.
-      Winston.info(`Created ${isoLevels.length} isoLevels: ${JSON.stringify(isoLevels)}`);
+      log.info(`Created ${isoLevels.length} isoLevels: ${JSON.stringify(isoLevels)}`);
     }
     conrec.contour(gridData, 0, gridData.length - 1, 0, gridData[0].length - 1, latitudes, longitudes, nrIsoLevels, isoLevels, this.gridParams.noDataValue || -9999);
     var contourList = conrec.contourList;

@@ -34,8 +34,8 @@ describe('ElectricitySim', () => {
   it('has 1 consumertopics', () => {
     expect(sim.getConsumerTopics()).to.have.length(1);
   });
-  it('has 1 producertopics', () => {
-    expect(sim.getProducerTopics()).to.have.length(1);
+  it('has 2 producertopics', () => {
+    expect(sim.getProducerTopics()).to.have.length(2);
   });
 
   describe('process scenario', () => {
@@ -55,7 +55,7 @@ describe('ElectricitySim', () => {
       };
       sim.processMessage(flood60);
 
-      verify(spiedSim.sendData(anyString(), anything(), anything())).times(3);
+      verify(spiedSim.sendData(anyString(), anything(), anything())).times(6);
     });
   });
 });

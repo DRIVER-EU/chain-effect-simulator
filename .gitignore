@@ -3,3 +3,6 @@ dist
 log.txt
 yarn-error.log
 log.txt
+chain.code-workspace
+log.txt
+test/testdata/**/chain*.json
