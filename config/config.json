@@ -22,6 +22,9 @@
       "topic": "chain_flood"
     },
     {
+      "topic": "chain_care"
+    },
+    {
       "topic": "chain"
     },
     {
@@ -31,5 +34,5 @@
       "topic": "system_timing_control"
     }
   ],
-  "produce": ["system_heartbeat", "chain_scenario", "chain", "chain_power", "chain_flood"]
+  "produce": ["system_heartbeat", "chain_scenario", "chain", "chain_power", "chain_care", "chain_flood"]
 }

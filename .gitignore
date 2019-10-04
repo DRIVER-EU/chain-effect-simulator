@@ -6,3 +6,5 @@ log.txt
 chain.code-workspace
 log.txt
 test/testdata/**/chain*.json
+grid_f.txt
+grid.txt

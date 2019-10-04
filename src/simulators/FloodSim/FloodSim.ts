@@ -51,6 +51,7 @@ export class FloodSim extends Simulator {
     this.floodStartTime = undefined;
     this.floodEnded = false;
     this.lastSentFile = -1;
+    log.warn(`${FloodSim.id} has been reset`);
   }
 
   private checkFloodUpdate(msg: ITiming) {

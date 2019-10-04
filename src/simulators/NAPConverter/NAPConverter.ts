@@ -1,15 +1,16 @@
-import {IChainScenario, SimStatus} from '../../models/schemas';
 import dotenv from 'dotenv';
 dotenv.config();
 import Conrec = require('./conrec');
 import _ = require('underscore');
-import {FeatureCollection, Feature, Polygon} from 'geojson';
-import {Dictionary} from '../../test-bed/consumerproducer';
-import {IIsoGrid, IFeatureCollectionDescription, IChainDataMessage, IChainUpdate} from '../../models/Interfaces';
-import {Logger, IAdapterMessage, ITestBedOptions, ITiming, TimeState} from 'node-test-bed-adapter';
-import {Simulator} from '../Simulator';
-import {FloodSim} from '../FloodSim/FloodSim';
-import {IsoLines} from '../../utils/Isolines';
+import fs = require('fs');
+import { FeatureCollection, Feature, Polygon, MultiPolygon } from 'geojson';
+import { Dictionary } from '../../test-bed/consumerproducer';
+import { IIsoGrid, IFeatureCollectionDescription, IChainDataMessage, IChainUpdate } from '../../models/Interfaces';
+import { Logger, IAdapterMessage, ITestBedOptions, ITiming, TimeState } from 'node-test-bed-adapter';
+import { Simulator } from '../Simulator';
+import { FloodSim } from '../FloodSim/FloodSim';
+import { IsoLines } from '../../utils/Isolines';
+import { contours } from 'd3-contour';
 
 const log = Logger.instance;
 
@@ -27,7 +28,7 @@ const dependentSims = [FloodSim.id];
 export class NAPConverter extends Simulator {
   static readonly id = 'NAPConverter';
   private gridParams: any = {};
-  private baseGrid: {[id: string]: number[][]} = {};
+  private baseGrid: { [id: string]: number[][] } = {};
   private receivedUpdateCount: Dictionary<IChainUpdate> = {};
   private sentUpdateCount: Dictionary<IChainUpdate> = {};
   private inputLayers: Dictionary<IChainDataMessage[]> = {};
@@ -36,7 +37,10 @@ export class NAPConverter extends Simulator {
   private processed: number[] = [];
 
   constructor(dataFolder: string, options: ITestBedOptions, whenReady?: Function) {
-    super(dataFolder, NAPConverter.id, options, whenReady);
+    super(dataFolder, NAPConverter.id, options, () => {
+      this.resetLayer();
+      if (whenReady) whenReady();
+    });
   }
 
   private reset() {
@@ -61,10 +65,15 @@ export class NAPConverter extends Simulator {
     return this.receivedUpdateCount.hasOwnProperty(scenarioId);
   }
 
+  private resetLayer() {
+    const baseLayer: IChainDataMessage = { id: 'base', simulator: NAPConverter.id, isFinal: false, timestamp: -1, data: JSON.stringify(this.createFeatureCollection([])) };
+    this.sendData(FLOOD_TOPIC, JSON.parse(JSON.stringify(baseLayer)), (err, data) => { });
+  }
+
   private initNewScenario(scenarioId: string) {
     if (this.hasScenario(scenarioId)) return log.info(`Already created scenario`);
-    this.receivedUpdateCount[scenarioId] = {count: 0, finished: false};
-    this.sentUpdateCount[scenarioId] = {count: 0, finished: false};
+    this.receivedUpdateCount[scenarioId] = { count: 0, finished: false };
+    this.sentUpdateCount[scenarioId] = { count: 0, finished: false };
     this.inputLayers[scenarioId] = [];
   }
 
@@ -85,18 +94,20 @@ export class NAPConverter extends Simulator {
         return;
       }
       log.info(`Converted ${value.id}`);
-      const napGridResult: IChainDataMessage = {id: value.id, simulator: NAPConverter.id, isFinal: value.isFinal, timestamp: value.timestamp, data: result.grid};
+      const napGridResult: IChainDataMessage = { id: value.id, simulator: NAPConverter.id, isFinal: value.isFinal, timestamp: value.timestamp, data: result.grid };
       this.sendData(CHAIN_TOPIC, napGridResult, (err, data) => {
-        const napFcResult: IChainDataMessage = {id: value.id, simulator: NAPConverter.id, isFinal: value.isFinal, timestamp: value.timestamp, data: JSON.stringify(result.iso)};
-        this.sendData(FLOOD_TOPIC, napFcResult, (err, data) => {});
+        const napFcResult: IChainDataMessage = { id: value.id, simulator: NAPConverter.id, isFinal: value.isFinal, timestamp: value.timestamp, data: JSON.stringify(result.iso) };
+        this.sendData(FLOOD_TOPIC, napFcResult, (err, data) => { });
       });
     });
   }
 
   public processTimeMessage(msg: ITiming) {
     log.info(`NAPConverter processes time-msg: ${JSON.stringify(msg).substr(0, 500)}`);
-    if (msg.state === TimeState.Stopped) {
+    if (msg.state === TimeState.Idle) {
       this.reset();
+    } else if (msg.state === TimeState.Initialized) {
+      this.resetLayer();
     }
   }
 
@@ -177,7 +188,8 @@ export class NAPConverter extends Simulator {
     var ftColl;
     if (process.env.USE_ISOLINES && process.env.USE_ISOLINES === 'true') {
       log.info('USE_ISOLINES');
-      ftColl = this.convertDataToIsoLines(grid).fc;
+      // ftColl = this.convertDataToIsoLines(grid).fc;
+      ftColl = this.convertDataToContour(grid).fc;
     } else {
       ftColl = this.convertDataToPolygonGrid(grid).fc;
     }
@@ -201,15 +213,16 @@ export class NAPConverter extends Simulator {
       };
     }
 
-    var propertyName = this.gridParams.propertyName || 'v';
+    var propertyName = this.gridParams.propertyName || 'water_level';
     var longitudes: number[] = [],
       latitudes: number[] = [];
     var lat = this.gridParams.startLat,
       lon = this.gridParams.startLon,
       deltaLat = this.gridParams.deltaLat,
       deltaLon = this.gridParams.deltaLon;
-    var max = this.gridParams.maxThreshold || 5,
+    var max = this.gridParams.maxThreshold || 4,
       min = this.gridParams.minThreshold || 0;
+    var noDataValue = this.gridParams.noDataValue || -9999;
 
     gridData = gridData.reverse();
     gridData.forEach(row => {
@@ -228,7 +241,7 @@ export class NAPConverter extends Simulator {
       isoLevels: number[];
 
     if (typeof this.gridParams.contourLevels === 'undefined') {
-      nrIsoLevels = 10;
+      nrIsoLevels = 8;
     } else {
       var cl = this.gridParams.contourLevels;
       if (typeof cl === 'number') {
@@ -245,7 +258,7 @@ export class NAPConverter extends Simulator {
       for (let l = min + dl / 2; l < max; l += dl) isoLevels.push(Math.round(l * 10) / 10); // round to nearest decimal.
       log.info(`Created ${isoLevels.length} isoLevels: ${JSON.stringify(isoLevels)}`);
     }
-    conrec.contour(gridData, 0, gridData.length - 1, 0, gridData[0].length - 1, latitudes, longitudes, nrIsoLevels, isoLevels, this.gridParams.noDataValue || -9999);
+    conrec.contour(gridData, 0, gridData.length - 1, 0, gridData[0].length - 1, latitudes, longitudes, nrIsoLevels, isoLevels, noDataValue);
     var contourList = conrec.contourList;
     contourList.forEach(contour => {
       var result: Dictionary<any> = {};
@@ -263,6 +276,7 @@ export class NAPConverter extends Simulator {
       contour.forEach(p => {
         ring.push([p.y, p.x]);
       });
+      feature.id = `NAP_${contour}`;
       features.push(feature);
     });
 
@@ -350,5 +364,104 @@ export class NAPConverter extends Simulator {
       polygon.properties = {};
     }
     return polygon;
+  }
+
+
+  /**
+   * Convert data to a set of isoline contours.
+   */
+  private convertDataToContour(gridData: number[][]): IFeatureCollectionDescription {
+    if (!_.isArray(gridData)) {
+      log.warn(`gridData is no array`);
+      log.debug(`${gridData.toString().slice(0, 500)}`);
+      return {
+        fc: this.createFeatureCollection([]),
+        desc: `gridData is no array`
+      };
+    }
+
+    var propertyName = this.gridParams.propertyName || 'v';
+    var longitudes: number[] = [],
+      latitudes: number[] = [];
+    var lat = this.gridParams.startLat,
+      lon = this.gridParams.startLon,
+      deltaLat = this.gridParams.deltaLat,
+      deltaLon = this.gridParams.deltaLon;
+    var max = this.gridParams.maxThreshold || 4,
+      min = this.gridParams.minThreshold || 0;
+    var noDataValue = this.gridParams.noDataValue || -9999;
+
+    gridData = gridData;
+    gridData.forEach(row => {
+      latitudes.push(lat);
+      lat += deltaLat;
+    });
+    gridData[0].forEach(col => {
+      longitudes.push(lon);
+      lon += deltaLon;
+      if (lon > 180) lon -= 360;
+    });
+
+    var features: Feature[] = [];
+    var nrIsoLevels: number,
+      isoLevels: number[];
+
+    if (typeof this.gridParams.contourLevels === 'undefined') {
+      nrIsoLevels = 8;
+    } else {
+      var cl = this.gridParams.contourLevels;
+      if (typeof cl === 'number') {
+        nrIsoLevels = cl;
+      } else {
+        isoLevels = cl;
+        nrIsoLevels = cl.length;
+      }
+    }
+
+    if (typeof isoLevels === 'undefined') {
+      isoLevels = [];
+      var dl = (max - min) / nrIsoLevels;
+      for (let l = min + dl / 2; l < max; l += dl) isoLevels.push(Math.round(l * 10) / 10); // round to nearest decimal.
+      log.info(`Created ${isoLevels.length} isoLevels: ${JSON.stringify(isoLevels)}`);
+    }
+
+    const grid: number[] = new Array(gridData.length * gridData[0].length);
+    gridData.forEach((line, n) => {
+      line.forEach((value, m) => grid[(n * line.length) + m] = (value === noDataValue ? -0.001 : value));
+    });
+    fs.writeFileSync(`grid.txt`, JSON.stringify(grid));
+    // Compute the contour polygons at log-spaced intervals; returns an array of MultiPolygon.
+    log.info(`Creating contours for ${grid.length} points of ${gridData[0].length} x ${gridData.length}`);
+    var contourList = contours()
+      .size([gridData[0].length, gridData.length])
+      .thresholds(isoLevels)(grid);
+    
+    contourList.forEach(contour => {
+      const c = contour as unknown as MultiPolygon;
+      var feature: Feature<MultiPolygon> = {
+        type: 'Feature',
+        geometry: c,
+        properties: {}
+      };
+      feature.geometry.coordinates.forEach(c1 => {
+        c1.forEach(c2 => {
+          c2.forEach(c3 => {
+            c3[0] = longitudes[Math.floor(c3[0])];
+            c3[1] = latitudes[Math.floor(c3[1])];
+          })
+        })
+      });
+      feature.properties[propertyName] = contour.value;
+      feature.id = `NAP_${contour.value}`;
+      features.push(feature);
+    });
+
+    fs.writeFileSync(`grid_f.txt`, JSON.stringify(features));
+
+    var desc = '# Number of features above the threshold: ' + features.length + '.\r\n';
+    return {
+      fc: this.createFeatureCollection(features),
+      desc: desc
+    };
   }
 }

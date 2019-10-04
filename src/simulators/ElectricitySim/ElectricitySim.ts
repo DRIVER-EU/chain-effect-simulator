@@ -1,13 +1,13 @@
-import {FeatureCollection, Feature, Polygon} from 'geojson';
-import {IChainDataMessage, IChainUpdate, IChangeEvent, InfrastructureState, ChangeType} from '../../models/Interfaces';
-import {Logger, IAdapterMessage, ITestBedOptions, ITiming, TimeState} from 'node-test-bed-adapter';
-import {Simulator} from '../Simulator';
-import {NAPConverter} from '../NAPConverter/NAPConverter';
+import { FeatureCollection, Feature, Polygon } from 'geojson';
+import { IChainDataMessage, IChainUpdate, IChangeEvent, InfrastructureState, ChangeType } from '../../models/Interfaces';
+import { Logger, IAdapterMessage, ITestBedOptions, ITiming, TimeState } from 'node-test-bed-adapter';
+import { Simulator } from '../Simulator';
+import { NAPConverter } from '../NAPConverter/NAPConverter';
 import fs from 'fs';
 import path from 'path';
 import * as _ from 'underscore';
-import {GeoExtensions} from '../../utils/GeoExtensions';
-import {Dictionary} from '../../test-bed/consumerproducer';
+import { GeoExtensions } from '../../utils/GeoExtensions';
+import { Dictionary } from '../../test-bed/consumerproducer';
 
 const CHAIN_TOPIC = process.env.CHAIN_TOPIC || 'chain';
 const ELECTRICITY_TOPIC = process.env.ELECTRICITY_TOPIC || 'chain_power';
@@ -33,8 +33,10 @@ export class ElectricitySim extends Simulator {
   private processed: number[] = [];
 
   constructor(dataFolder: string, options: ITestBedOptions, whenReady?: Function) {
-    super(dataFolder, ElectricitySim.id, options, whenReady);
-    this.readDataFolder();
+    super(dataFolder, ElectricitySim.id, options, () => {
+      this.readDataFolder(true); // On startup, send the baseLayer
+      if (whenReady) whenReady();
+    });
   }
 
   private reset() {
@@ -56,15 +58,19 @@ export class ElectricitySim extends Simulator {
     return [CHAIN_TOPIC, ELECTRICITY_TOPIC];
   }
 
-  private readDataFolder() {
+  private readDataFolder(sendBaseLayer: boolean = false) {
     const fileName = path.join(this.dataFolder, ElectricitySim.id, `${ElectricitySim.id}.json`);
-    const data = fs.readFileSync(fileName, {encoding: 'utf8'});
+    const data = fs.readFileSync(fileName, { encoding: 'utf8' });
     this.baseLayer = JSON.parse(data);
     this.baseLayer.features.forEach((f, index) => {
       f.id = `POW_${index}`;
       f.properties['state'] = InfrastructureState.Ok;
     });
-    log.info(`Read Electricity basefile: ${fileName}`);
+    log.info(`Read Electricity basefile: ${fileName} with ${this.baseLayer.features.length} features`);
+    if (sendBaseLayer) {
+      const baseLayer: IChainDataMessage = { id: 'base', simulator: ElectricitySim.id, isFinal: false, timestamp: -1, data: JSON.stringify(this.baseLayer) };
+      this.sendData(ELECTRICITY_TOPIC, JSON.parse(JSON.stringify(baseLayer)), (err, data) => { });
+    }
   }
 
   public hasScenario(scenarioId: string) {
@@ -73,13 +79,13 @@ export class ElectricitySim extends Simulator {
 
   private initNewScenario(scenarioId: string) {
     if (this.hasScenario(scenarioId)) return log.info(`Already created scenario`);
-    this.receivedUpdateCount[scenarioId] = {count: 0, finished: false};
+    this.receivedUpdateCount[scenarioId] = { count: 0, finished: false };
     this.inputLayers[scenarioId] = [];
-    const initialLayer: IChainDataMessage = {id: scenarioId, simulator: ElectricitySim.id, isFinal: false, timestamp: -1, data: JSON.stringify(this.baseLayer)};
+    const initialLayer: IChainDataMessage = { id: scenarioId, simulator: ElectricitySim.id, isFinal: false, timestamp: -1, data: JSON.stringify(this.baseLayer) };
     this.outputLayers[scenarioId] = [initialLayer];
-    this.sentUpdateCount[scenarioId] = {count: 0, finished: false};
-    this.sendData(CHAIN_TOPIC, initialLayer, (err, data) => {});
-    this.sendData(ELECTRICITY_TOPIC, initialLayer, (err, data) => {});
+    this.sentUpdateCount[scenarioId] = { count: 0, finished: false };
+    this.sendData(CHAIN_TOPIC, JSON.parse(JSON.stringify(initialLayer)), (err, data) => { });
+    this.sendData(ELECTRICITY_TOPIC, JSON.parse(JSON.stringify(initialLayer)), (err, data) => { });
   }
 
   private processLatestMessage(id: string, isFinished: boolean) {
@@ -108,8 +114,10 @@ export class ElectricitySim extends Simulator {
 
   public processTimeMessage(msg: ITiming) {
     log.info(`ElectricSim processes time-msg: ${JSON.stringify(msg).substr(0, 500)}`);
-    if (msg.state === TimeState.Stopped) {
+    if (msg.state === TimeState.Idle) {
       this.reset();
+    } else if (msg.state === TimeState.Initialized) {
+      this.readDataFolder(true);
     }
   }
 
@@ -123,9 +131,9 @@ export class ElectricitySim extends Simulator {
   }
 
   private sendLayer(flood: IChainDataMessage, result: FeatureCollection) {
-    const powerResult: IChainDataMessage = {id: flood.id, simulator: ElectricitySim.id, isFinal: flood.isFinal, timestamp: flood.timestamp, data: JSON.stringify(result)};
-    this.sendData(CHAIN_TOPIC, powerResult, (err, data) => {});
-    this.sendData(ELECTRICITY_TOPIC, powerResult, (err, data) => {});
+    const powerResult: IChainDataMessage = { id: flood.id, simulator: ElectricitySim.id, isFinal: flood.isFinal, timestamp: flood.timestamp, data: JSON.stringify(result) };
+    this.sendData(CHAIN_TOPIC, powerResult, (err, data) => { });
+    this.sendData(ELECTRICITY_TOPIC, powerResult, (err, data) => { });
   }
 
   public processFloodLayer(msg: IChainDataMessage, callback: (result: FeatureCollection) => void) {
@@ -151,7 +159,7 @@ export class ElectricitySim extends Simulator {
     // this.inputLayers[msg.id][msg.timestamp] = powerLayer;
     // this.updateFailedFeatures(failedObjects, powerLayer.id, floodTime);
     // this.sendLayerUpdate(failedObjects, powerLayer, floodTime);
-    const newPowerLayer: IChainDataMessage = {id: msg.id, simulator: ElectricitySim.id, isFinal: msg.isFinal, timestamp: msg.timestamp, data: JSON.stringify(GeoExtensions.createFeatureCollection(features))};
+    const newPowerLayer: IChainDataMessage = { id: msg.id, simulator: ElectricitySim.id, isFinal: msg.isFinal, timestamp: msg.timestamp, data: JSON.stringify(GeoExtensions.createFeatureCollection(features)) };
     log.info(`Power features failed: ${failedObjects.length}, Power features after: ${features.length}`);
     this.outputLayers[msg.id].push(newPowerLayer);
     log.info(`Processed ${msg.id} at ${msg.timestamp}`);

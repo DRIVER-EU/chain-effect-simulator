@@ -326,7 +326,7 @@ export class IsoLines {
             nrIsoLevels: number,
             isoLevels: number[];
 
-        if (typeof gridParams.contourLevels === 'undefined') nrIsoLevels = 10;
+        if (typeof gridParams.contourLevels === 'undefined') nrIsoLevels = 8;
         else {
             var cl = gridParams.contourLevels;
             if (typeof cl === 'number') {
