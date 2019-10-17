@@ -32,7 +32,10 @@
     },
     {
       "topic": "system_timing_control"
+    },
+    {
+      "topic": "standard_cap"
     }
   ],
-  "produce": ["system_heartbeat", "chain_scenario", "chain", "chain_power", "chain_care", "chain_flood"]
+  "produce": ["system_heartbeat", "chain_scenario", "chain", "chain_power", "chain_care", "chain_flood", "standard_cap"]
 }

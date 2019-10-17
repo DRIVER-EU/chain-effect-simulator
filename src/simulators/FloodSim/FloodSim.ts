@@ -3,6 +3,7 @@ dotenv.config();
 import {Logger, IAdapterMessage, ITestBedOptions, ITiming, TimeState} from 'node-test-bed-adapter';
 import {Simulator} from '../Simulator';
 import fs from 'fs';
+import path from 'path';
 import async from 'async';
 import {IChainDataMessage} from '../../models/Interfaces';
 
@@ -123,7 +124,7 @@ export class FloodSim extends Simulator {
   }
 
   public setFiles(files: string[]) {
-    this.files = files;
+    this.files = files.map(f => path.join(this.dataFolder, f));
   }
 
   private sendFile(topic: string, file: string, timestamp: number, isFinal: boolean, resolve: Function) {

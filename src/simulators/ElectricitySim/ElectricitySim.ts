@@ -1,7 +1,7 @@
 import { FeatureCollection, Feature, Polygon } from 'geojson';
 import { IChainDataMessage, IChainUpdate, IChangeEvent, InfrastructureState, ChangeType } from '../../models/Interfaces';
 import { Logger, IAdapterMessage, ITestBedOptions, ITiming, TimeState } from 'node-test-bed-adapter';
-import { Simulator } from '../Simulator';
+import { Simulator, CAP_TOPIC } from '../Simulator';
 import { NAPConverter } from '../NAPConverter/NAPConverter';
 import fs from 'fs';
 import path from 'path';
@@ -55,7 +55,7 @@ export class ElectricitySim extends Simulator {
   }
 
   public getProducerTopics(): string[] {
-    return [CHAIN_TOPIC, ELECTRICITY_TOPIC];
+    return [CHAIN_TOPIC, ELECTRICITY_TOPIC, CAP_TOPIC];
   }
 
   private readDataFolder(sendBaseLayer: boolean = false) {
@@ -86,6 +86,7 @@ export class ElectricitySim extends Simulator {
     this.sentUpdateCount[scenarioId] = { count: 0, finished: false };
     this.sendData(CHAIN_TOPIC, JSON.parse(JSON.stringify(initialLayer)), (err, data) => { });
     this.sendData(ELECTRICITY_TOPIC, JSON.parse(JSON.stringify(initialLayer)), (err, data) => { });
+    this.sendCAP('stedin', `There are ${this.baseLayer ? this.baseLayer.features.length : '?'} power stations in this area`, true);
   }
 
   private processLatestMessage(id: string, isFinished: boolean) {
@@ -163,6 +164,7 @@ export class ElectricitySim extends Simulator {
     log.info(`Power features failed: ${failedObjects.length}, Power features after: ${features.length}`);
     this.outputLayers[msg.id].push(newPowerLayer);
     log.info(`Processed ${msg.id} at ${msg.timestamp}`);
+    this.sendCAP('STEDIN', `${failedObjects.length} power stations failed`);
     callback(GeoExtensions.createFeatureCollection(failedObjects.map(fo => fo.value)));
   }
 

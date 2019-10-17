@@ -1,10 +1,8 @@
 import {ElectricitySim} from '../src/simulators/ElectricitySim/ElectricitySim';
 import {expect} from 'chai';
 import {mock, when, anyString, anything, anyFunction, instance, spy, verify} from 'ts-mockito';
-import {TEST_BED_OPTS, TEST_DATA_FOLDER, DEMO_SCENARIO, FLOOD_DATA_INITIAL, FLOOD_DATA_FINAL, WRITE_OUTPUT, NAP_DATA_INITIAL, NAP_DATA_FINAL} from '.';
+import {TEST_BED_OPTS, TEST_DATA_FOLDER, DEMO_SCENARIO, WRITE_OUTPUT, NAP_DATA_INITIAL, NAP_DATA_FINAL} from '.';
 import {IAdapterMessage} from 'node-test-bed-adapter';
-import {IChainScenario, SimStatus} from '../src/models/schemas';
-import {FloodSim} from '../src/simulators/FloodSim/FloodSim';
 import {IChainDataMessage} from '../src/models/Interfaces';
 import { NAPConverter } from '../src/simulators/NAPConverter/NAPConverter';
 
@@ -34,8 +32,8 @@ describe('ElectricitySim', () => {
   it('has 1 consumertopics', () => {
     expect(sim.getConsumerTopics()).to.have.length(1);
   });
-  it('has 2 producertopics', () => {
-    expect(sim.getProducerTopics()).to.have.length(2);
+  it('has 3 producertopics', () => {
+    expect(sim.getProducerTopics()).to.have.length(3);
   });
 
   describe('process scenario', () => {

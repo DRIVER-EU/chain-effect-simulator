@@ -35,8 +35,8 @@ describe('CareObjectSim', () => {
   it('has 1 consumertopics', () => {
     expect(sim.getConsumerTopics()).to.have.length(1);
   });
-  it('has 1 producertopics', () => {
-    expect(sim.getProducerTopics()).to.have.length(1);
+  it('has 2 producertopics', () => {
+    expect(sim.getProducerTopics()).to.have.length(2);
   });
 
   describe('process scenario', () => {

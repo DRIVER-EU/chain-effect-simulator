@@ -48,7 +48,11 @@ export const TEST_BED_OPTS: ITestBedOptions = {
     {
       topic: 'chain_waterheight',
       offset: -1
+    },
+    {
+      topic: 'standard_cap',
+      offset: -1
     }
   ],
-  produce: ['chain_scenario', 'chain_flood', 'chain_power', 'chain_waterheight']
+  produce: ['chain_scenario', 'chain_flood', 'chain_power', 'chain_waterheight', 'standard_cap']
 };

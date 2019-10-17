@@ -9,10 +9,11 @@ import {ElectricitySim} from './src/simulators/ElectricitySim/ElectricitySim';
 import {FloodSim} from './src/simulators/FloodSim/FloodSim';
 import {CareObjectSim} from './src/simulators/CareObjectSim/CareObjectSim';
 
-const SIM_DATA_FOLDER = path.join('data', 'layers');
+const FLOOD_DATA_FOLDER = path.join(__dirname, 'data', 'demo');
+const SIM_DATA_FOLDER = path.join(__dirname, 'data', 'layers');
 const BATCH_RUN_MODE = process.argv.some(val => val === '-b' || val === '--batch');
 const log = Logger.instance;
-log.info(`Start chain-effect-simulator. (batch mode=${BATCH_RUN_MODE})`);
+log.info(`Start chain-effect-simulator. (batch mode=${BATCH_RUN_MODE}, layers=${SIM_DATA_FOLDER}, flood=${FLOOD_DATA_FOLDER})`);
 
 // READ (TEST-BED) CONFIGURATION FILE
 var DynamicTestBedConfig;
@@ -46,8 +47,8 @@ const startFlood = async (floodSim: FloodSim, startImmediately = false) => {
 
 const startFloodSim = cb => {
   log.info('Preparing flood...');
-  const floodSim = new FloodSim(SIM_DATA_FOLDER, clone(testBedOptions), () => {
-    floodSim.setFiles(['./data/demo/waterlevel_0min_40x40m.asc', './data/demo/waterlevel_60min_40x40m.asc', './data/demo/waterlevel_120min_40x40m.asc', './data/demo/waterlevel_240min_40x40m.asc', './data/demo/waterlevel_360min_40x40m.asc']);
+  const floodSim = new FloodSim(FLOOD_DATA_FOLDER, clone(testBedOptions), () => {
+    floodSim.setFiles(['./waterlevel_0min_40x40m.asc', './waterlevel_60min_40x40m.asc', './waterlevel_120min_40x40m.asc', './waterlevel_240min_40x40m.asc', './waterlevel_360min_40x40m.asc']);
     floodSim.setInterval(60 * 60 * 1000);
     cb(floodSim);
   });

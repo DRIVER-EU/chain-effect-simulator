@@ -31,7 +31,7 @@ describe('FloodSim', () => {
 
   describe('publish flood', () => {
     it('should send a flood', async () => {
-      sim.setFiles([path.join('.', 'test', 'testdata', 'demo', 'waterlevel_0min.asc'), path.join('.', 'test', 'testdata', 'demo', 'waterlevel_60min.asc')]);
+      sim.setFiles([path.join('..', '..', 'test', 'testdata', 'demo', 'waterlevel_0min.asc'), path.join('..', '..', 'test', 'testdata', 'demo', 'waterlevel_60min.asc')]);
       sim.setInterval(60 * 60 * 1000);
       await sim.publishFlood(true);
       verify(spiedSim.sendData(anyString(), anything(), anything())).times(2);
