@@ -1,16 +1,18 @@
-import {IChainScenario, SimStatus} from '../models/schemas';
-import {IAdapterMessage, ITestBedOptions, Logger, ITiming} from 'node-test-bed-adapter';
-import {ConsumerProducer} from '../test-bed/consumerproducer';
+import { IChainScenario, SimStatus } from '../models/schemas';
+import { IAdapterMessage, ITestBedOptions, Logger, ITiming, uuid4 } from 'node-test-bed-adapter';
+import { ConsumerProducer } from '../test-bed/consumerproducer';
 import fs from 'fs-extra';
 import path from 'path';
-import {FeatureCollection, Feature, Point, LineString, MultiPolygon, GeometryObject} from 'geojson';
-import {IChangeEvent, ChangeType, InfrastructureState, FailureMode} from '../models/Interfaces';
-import {IsoLines, IGridDataSourceParameters} from '../utils/Isolines';
-import {GeoExtensions} from '../utils/GeoExtensions';
+import { FeatureCollection, Feature, Point, LineString, MultiPolygon, GeometryObject } from 'geojson';
+import { IChangeEvent, ChangeType, InfrastructureState, FailureMode } from '../models/Interfaces';
+import { IsoLines, IGridDataSourceParameters } from '../utils/Isolines';
+import { GeoExtensions } from '../utils/GeoExtensions';
 import { createDefaultCAPMessage } from '../models/cap';
+import { IPost, MediumTypes, createDefaultMail } from '../models/simulation_entity_post-value';
 
 export const SCENARIO_TOPIC = process.env.SCENARIO_TOPIC || 'chain_scenario';
 export const CAP_TOPIC = process.env.CAP_TOPIC || 'standard_cap';
+export const MAIL_TOPIC = process.env.MAIL_TOPIC || 'simulation_entity_post';
 
 const log = Logger.instance;
 
@@ -22,7 +24,7 @@ export abstract class Simulator {
   public get isConnected(): boolean {
     return this._isConnected;
   }
-  private totalBlackoutAreas: {[id: string]: {[time: number]: MultiPolygon}} = {};
+  private totalBlackoutAreas: { [id: string]: { [time: number]: MultiPolygon } } = {};
 
   constructor(dataFolder: string, id: string, options: ITestBedOptions, whenReady?: Function) {
     this.dataFolder = dataFolder;
@@ -59,7 +61,7 @@ export abstract class Simulator {
   }
 
   protected sendScenarioUpdate(scenarioId: string, simId: string, status: SimStatus, cb?: (err?: Error, data?: any) => void) {
-    const scenario: IChainScenario = {scenarioId: scenarioId, simId: simId, simStatus: status};
+    const scenario: IChainScenario = { scenarioId: scenarioId, simId: simId, simStatus: status };
     this.sendData(SCENARIO_TOPIC, scenario, cb);
   }
 
@@ -71,6 +73,18 @@ export abstract class Simulator {
     this.consumerProducer.sendData(topic, data, cb);
   }
 
+  public sendEmail(sender: string, title: string, body: string, cb?: (err?: Error, data?: any) => void) {
+    if (!this.consumerProducer || !this.isConnected) {
+      log.warn(`Cannot send data: not connected`);
+      return;
+    }
+    var mail: IPost = createDefaultMail();
+    mail.senderName = `${sender}@chainsim.eu`;
+    mail.name = title;
+    mail.body = body;
+    this.consumerProducer.sendData(MAIL_TOPIC, JSON.parse(JSON.stringify(mail)), cb);
+    log.warn('Sent MAIL for ' + sender);
+  }
 
   public sendCAP(sender: string, data: any, initialMessage: boolean = false, cb?: (err?: Error, data?: any) => void) {
     if (!this.consumerProducer || !this.isConnected) {
@@ -79,7 +93,7 @@ export abstract class Simulator {
     }
     var cap = createDefaultCAPMessage(sender);
     cap.sender = `${sender}@tmt.eu`;
-    cap.info.parameter = {valueName: initialMessage ? 'Initial power network status' : 'Power network status', value: data};
+    cap.info.parameter = { valueName: initialMessage ? 'Initial power network status' : 'Power network status', value: data };
     this.consumerProducer.sendData(CAP_TOPIC, JSON.parse(JSON.stringify(cap)), cb);
     log.warn('Sent CAP data for ' + sender);
   }

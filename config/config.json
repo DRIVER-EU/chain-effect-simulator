@@ -35,7 +35,10 @@
     },
     {
       "topic": "standard_cap"
+    },
+    {
+      "topic": "simulation_entity_post"
     }
   ],
-  "produce": ["system_heartbeat", "chain_scenario", "chain", "chain_power", "chain_care", "chain_flood", "standard_cap"]
+  "produce": ["system_heartbeat", "chain_scenario", "chain", "chain_power", "chain_care", "chain_flood", "standard_cap", "simulation_entity_post"]
 }

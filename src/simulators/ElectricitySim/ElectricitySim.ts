@@ -165,6 +165,7 @@ export class ElectricitySim extends Simulator {
     this.outputLayers[msg.id].push(newPowerLayer);
     log.info(`Processed ${msg.id} at ${msg.timestamp}`);
     this.sendCAP('STEDIN', `${failedObjects.length} power stations failed`);
+    this.sendEmail('STEDIN', 'Power network status', `${failedObjects.length} power stations have failed in the area`);
     callback(GeoExtensions.createFeatureCollection(failedObjects.map(fo => fo.value)));
   }
 
