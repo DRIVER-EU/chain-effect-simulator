@@ -6,7 +6,7 @@ import fs = require('fs');
 import { FeatureCollection, Feature, Polygon, MultiPolygon } from 'geojson';
 import { Dictionary } from '../../test-bed/consumerproducer';
 import { IIsoGrid, IFeatureCollectionDescription, IChainDataMessage, IChainUpdate } from '../../models/Interfaces';
-import { Logger, IAdapterMessage, ITestBedOptions, ITiming, TimeState } from 'node-test-bed-adapter';
+import { Logger, IAdapterMessage, ITestBedOptions, ITimeManagement, TimeState } from 'node-test-bed-adapter';
 import { Simulator } from '../Simulator';
 import { FloodSim } from '../FloodSim/FloodSim';
 import { IsoLines } from '../../utils/Isolines';
@@ -102,11 +102,11 @@ export class NAPConverter extends Simulator {
     });
   }
 
-  public processTimeMessage(msg: ITiming) {
+  public processTimeMessage(msg: ITimeManagement) {
     log.info(`NAPConverter processes time-msg: ${JSON.stringify(msg).substr(0, 500)}`);
-    if (msg.state === TimeState.Idle) {
+    if (msg.state === TimeState.Reset) {
       this.reset();
-    } else if (msg.state === TimeState.Initialized) {
+    } else if (msg.state === TimeState.Initialization) {
       this.resetLayer();
     }
   }

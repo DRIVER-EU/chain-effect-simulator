@@ -1,6 +1,6 @@
 import { FeatureCollection, Feature, Polygon } from 'geojson';
 import { IChainDataMessage, IChainUpdate, IChangeEvent, InfrastructureState, ChangeType } from '../../models/Interfaces';
-import { Logger, IAdapterMessage, ITestBedOptions, ITiming, TimeState } from 'node-test-bed-adapter';
+import { Logger, IAdapterMessage, ITestBedOptions, ITimeManagement, TimeState } from 'node-test-bed-adapter';
 import { Simulator, CAP_TOPIC } from '../Simulator';
 import { NAPConverter } from '../NAPConverter/NAPConverter';
 import fs from 'fs';
@@ -113,11 +113,11 @@ export class ElectricitySim extends Simulator {
     this.processLatestMessage(value.id, value.isFinal);
   }
 
-  public processTimeMessage(msg: ITiming) {
+  public processTimeMessage(msg: ITimeManagement) {
     log.info(`ElectricSim processes time-msg: ${JSON.stringify(msg).substr(0, 500)}`);
-    if (msg.state === TimeState.Idle) {
+    if (msg.state === TimeState.Reset) {
       this.reset();
-    } else if (msg.state === TimeState.Initialized) {
+    } else if (msg.state === TimeState.Initialization) {
       this.readDataFolder(true);
     }
   }

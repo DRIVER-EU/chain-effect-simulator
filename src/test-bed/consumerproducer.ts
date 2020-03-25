@@ -4,7 +4,7 @@
 // kafkaLogging.setLoggerProvider(consoleLoggerProvider);
 
 import {ProduceRequest} from 'kafka-node';
-import {TestBedAdapter, Logger, IAdapterMessage, ITestBedOptions, ITiming} from 'node-test-bed-adapter';
+import {TestBedAdapter, Logger, IAdapterMessage, ITestBedOptions, ITimeManagement} from 'node-test-bed-adapter';
 const log = Logger.instance;
 const stringify = (m: string | Object) => (typeof m === 'string' ? m : JSON.stringify(m, null, 2)).substr(0, 200);
 
@@ -13,7 +13,7 @@ export interface Dictionary<T> {
 }
 
 export type MessageHandlerFunc = (msg: IAdapterMessage) => void;
-export type TimerHandlerFunc = (msg: ITiming) => void;
+export type TimerHandlerFunc = (msg: ITimeManagement) => void;
 
 export class ConsumerProducer {
   private adapter: TestBedAdapter;
@@ -93,10 +93,10 @@ export class ConsumerProducer {
     });
   }
 
-  private handleTimeMessage(message: ITiming) {
-    log.info(`Received timing message: State ${message.state}, Time: ${message.trialTime} (elapsed: ${message.timeElapsed})`);
+  private handleTimeMessage(msg: ITimeManagement) {
+    log.info(`Received timing message: State ${msg.state}, Time: ${msg.simulationTime} (timestamp: ${msg.timestamp}) ${msg.simulationSpeed}x`);
     if (this.timeHandler) {
-      this.timeHandler(message);
+      this.timeHandler(msg);
     }
   }
 

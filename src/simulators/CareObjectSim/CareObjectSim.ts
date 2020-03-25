@@ -1,7 +1,8 @@
-import { FeatureCollection, Feature, Polygon } from 'geojson';
+import { FeatureCollection } from 'geojson';
 import { Dictionary } from '../../test-bed/consumerproducer';
-import { IChainDataMessage, IChainUpdate, IChangeEvent, InfrastructureState, ChangeType } from '../../models/Interfaces';
-import { Logger, IAdapterMessage, ITestBedOptions, clone, ITiming, TimeState } from 'node-test-bed-adapter';
+import { IChainDataMessage, IChainUpdate, IChangeEvent, InfrastructureState } from '../../models/Interfaces';
+import { Logger, IAdapterMessage, ITestBedOptions, clone } from 'node-test-bed-adapter';
+import { ITimeManagement, TimeState } from 'test-bed-schemas';
 import { Simulator } from '../Simulator';
 import { NAPConverter } from '../NAPConverter/NAPConverter';
 import fs from 'fs';
@@ -131,11 +132,11 @@ export class CareObjectSim extends Simulator {
     this.processLatestMessage(value.id, value.simulator, value.isFinal);
   }
 
-  public processTimeMessage(msg: ITiming) {
+  public processTimeMessage(msg: ITimeManagement) {
     log.info(`CareObjectSim processes time-msg: ${JSON.stringify(msg).substr(0, 500)}`);
-    if (msg.state === TimeState.Idle) {
+    if (msg.state === TimeState.Reset) {
       this.reset();
-    } else if (msg.state === TimeState.Initialized) {
+    } else if (msg.state === TimeState.Initialization) {
       this.readDataFolder(true);
     }
   }

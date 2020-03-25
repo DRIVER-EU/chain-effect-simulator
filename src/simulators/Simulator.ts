@@ -1,5 +1,6 @@
 import { IChainScenario, SimStatus } from '../models/schemas';
-import { IAdapterMessage, ITestBedOptions, Logger, ITiming, uuid4 } from 'node-test-bed-adapter';
+import { IAdapterMessage, ITestBedOptions, Logger, ITimeManagement } from 'node-test-bed-adapter';
+import { IPost } from 'test-bed-schemas';
 import { ConsumerProducer } from '../test-bed/consumerproducer';
 import fs from 'fs-extra';
 import path from 'path';
@@ -8,7 +9,7 @@ import { IChangeEvent, ChangeType, InfrastructureState, FailureMode } from '../m
 import { IsoLines, IGridDataSourceParameters } from '../utils/Isolines';
 import { GeoExtensions } from '../utils/GeoExtensions';
 import { createDefaultCAPMessage } from '../models/cap';
-import { IPost, MediumTypes, createDefaultMail } from '../models/simulation_entity_post-value';
+import { createDefaultMail } from '../models/simulation_entity_post-value';
 
 export const SCENARIO_TOPIC = process.env.SCENARIO_TOPIC || 'chain_scenario';
 export const CAP_TOPIC = process.env.CAP_TOPIC || 'standard_cap';
@@ -79,7 +80,7 @@ export abstract class Simulator {
       return;
     }
     var mail: IPost = createDefaultMail();
-    mail.senderName = `${sender}@chainsim.eu`;
+    mail.owner = `${sender}@chainsim.eu`;
     mail.name = title;
     mail.body = body;
     this.consumerProducer.sendData(MAIL_TOPIC, JSON.parse(JSON.stringify(mail)), cb);
@@ -99,7 +100,7 @@ export abstract class Simulator {
   }
 
   abstract processMessage(msg: IAdapterMessage);
-  abstract processTimeMessage(msg: ITiming);
+  abstract processTimeMessage(msg: ITimeManagement);
   abstract getConsumerTopics(): string[];
   abstract getProducerTopics(): string[];
 

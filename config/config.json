@@ -28,10 +28,7 @@
       "topic": "chain"
     },
     {
-      "topic": "system_timing"
-    },
-    {
-      "topic": "system_timing_control"
+      "topic": "simulation_time_mgmt"
     },
     {
       "topic": "standard_cap"

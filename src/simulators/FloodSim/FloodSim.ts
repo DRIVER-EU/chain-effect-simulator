@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 dotenv.config();
-import {Logger, IAdapterMessage, ITestBedOptions, ITiming, TimeState} from 'node-test-bed-adapter';
+import {Logger, IAdapterMessage, ITestBedOptions, ITimeManagement, TimeState} from 'node-test-bed-adapter';
 import {Simulator} from '../Simulator';
 import fs from 'fs';
 import path from 'path';
@@ -40,8 +40,8 @@ export class FloodSim extends Simulator {
 
   public processMessage(msg: IAdapterMessage) {}
 
-  public processTimeMessage(msg: ITiming) {
-    log.info(`${FloodSim.id} received timing message: State ${msg.state}, Time: ${msg.trialTime} (elapsed: ${msg.timeElapsed})`);
+  public processTimeMessage(msg: ITimeManagement) {
+    log.info(`${FloodSim.id} received timing message: State ${msg.state}, Time: ${msg.simulationTime} (timestamp: ${msg.timestamp}) ${msg.simulationSpeed}x`);
     this.checkFloodUpdate(msg);
     if (msg.state === TimeState.Stopped) {
       this.resetFlood();
@@ -55,15 +55,15 @@ export class FloodSim extends Simulator {
     log.warn(`${FloodSim.id} has been reset`);
   }
 
-  private checkFloodUpdate(msg: ITiming) {
+  private checkFloodUpdate(msg: ITimeManagement) {
     if (msg.state === TimeState.Stopped) {
       this.resetFlood();
     } else if (!this.floodStarted() && msg.state === TimeState.Started) {
-      this.floodStartTime = msg.trialTime;
+      this.floodStartTime = msg.simulationTime;
       this.sendFile(CHAIN_TOPIC, this.files[(this.lastSentFile += 1)], this.lastSentFile * this.interval, this.isFinalFile(this.lastSentFile), () => {
         log.info(`${FloodSim.id} sent initial file`);
       });
-    } else if (this.floodInProgress() && msg.trialTime - this.floodStartTime >= (this.lastSentFile + 1) * this.interval) {
+    } else if (this.floodInProgress() && msg.simulationTime - this.floodStartTime >= (this.lastSentFile + 1) * this.interval) {
       this.sendFile(CHAIN_TOPIC, this.files[(this.lastSentFile += 1)], this.lastSentFile * this.interval, this.isFinalFile(this.lastSentFile), () => {
         log.info(`${FloodSim.id} sent file ${this.files[this.lastSentFile]}`);
       });
