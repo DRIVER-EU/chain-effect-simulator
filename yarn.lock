@@ -2003,10 +2003,10 @@ node-environment-flags@1.0.6:
     object.getownpropertydescriptors "^2.0.3"
     semver "^5.7.0"
 
-node-test-bed-adapter@^2.0.7:
-  version "2.0.7"
-  resolved "https://registry.yarnpkg.com/node-test-bed-adapter/-/node-test-bed-adapter-2.0.7.tgz#409f95c430991bbf13368fd55f379d5a2c79e721"
-  integrity sha512-xJmFrrhCYs83DD8ymdDZAxSg0Yq8ivIG1/c3Tb4ZlSw5FU9zyJ1atba+PKhhz1Lh3jqgkiVvvLeuM7jYwZarxg==
+node-test-bed-adapter@^2.0.8:
+  version "2.0.8"
+  resolved "https://registry.yarnpkg.com/node-test-bed-adapter/-/node-test-bed-adapter-2.0.8.tgz#f16c613a409f10e5edbdb61c58373169779c97ab"
+  integrity sha512-OpQ6OKkoNbzgOd0QJ2qZxozpNHPaaSTwCcBQhu3Imeqe63Av6eQbGK/Z/+WcqmL22lMSMlJSFZpOxcJq/w2ZIw==
   dependencies:
     "@types/bluebird" "^3.5.30"
     avsc "^5.4.19"
@@ -3057,9 +3057,9 @@ wrappy@1:
   integrity sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
 
 y18n@^4.0.0:
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/y18n/-/y18n-4.0.0.tgz#95ef94f85ecc81d007c264e190a120f0a3c8566b"
-  integrity sha512-r9S/ZyXu/Xu9q1tYlpsLIsa3EeLXXk0VwlxqTcFRfg9EhMW+17kbt9G0NrgCmhGb5vT2hyhJZLfDGx+7+5Uj/w==
+  version "4.0.1"
+  resolved "https://registry.yarnpkg.com/y18n/-/y18n-4.0.1.tgz#8db2b83c31c5d75099bb890b23f3094891e247d4"
+  integrity sha512-wNcy4NvjMYL8gogWWYAO7ZFWFfHcbdbE57tZO8e4cbpj8tfUcwrwqSl3ad8HxpYWCdXcJUCeKKZS62Av1affwQ==
 
 yargs-parser@13.1.2, yargs-parser@^13.1.2:
   version "13.1.2"
