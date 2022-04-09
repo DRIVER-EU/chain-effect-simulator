@@ -36,7 +36,7 @@
     "express": "^4.17.1",
     "fs-extra": "^8.1.0",
     "geojson": "^0.5.0",
-    "moment": "^2.24.0",
+    "moment": "^2.29.2",
     "node-test-bed-adapter": "^2.0.8",
     "test-bed-schemas": "^0.3.8",
     "underscore": "^1.9.2",
