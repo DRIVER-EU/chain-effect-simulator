@@ -20,10 +20,10 @@
   resolved "https://registry.yarnpkg.com/@types/async/-/async-2.4.2.tgz#9b33d5c9fcebff17139521753eaf992ed5ace8e4"
   integrity sha512-bWBbC7VG2jdjbgZMX0qpds8U/3h3anfIqE81L8jmVrgFZw/urEDnBA78ymGGKTTK6ciBXmmJ/xlok+Re41S8ww==
 
-"@types/bluebird@^3.5.30":
-  version "3.5.30"
-  resolved "https://registry.yarnpkg.com/@types/bluebird/-/bluebird-3.5.30.tgz#ee034a0eeea8b84ed868b1aa60d690b08a6cfbc5"
-  integrity sha512-8LhzvcjIoqoi1TghEkRMkbbmM+jhHnBokPGkJWjclMK+Ks0MxEBow3/p2/iFTZ+OIbJHQDSfpgdZEb+af3gfVw==
+"@types/bluebird@^3.5.36":
+  version "3.5.36"
+  resolved "https://registry.yarnpkg.com/@types/bluebird/-/bluebird-3.5.36.tgz#00d9301d4dc35c2f6465a8aec634bb533674c652"
+  integrity sha512-HBNx4lhkxN7bx6P0++W8E289foSu8kO8GCk2unhuVggO+cE7rh9DhZUyPhUxNRG9m+5B5BTKxZQ5ZP92x/mx9Q==
 
 "@types/chai@^4.2.11":
   version "4.2.11"
@@ -231,17 +231,18 @@ atob@^2.1.2:
   resolved "https://registry.yarnpkg.com/atob/-/atob-2.1.2.tgz#6d9517eb9e030d2436666651e86bd9f6f13533c9"
   integrity sha512-Wm6ukoaOGJi/73p/cl2GvLjTI5JM1k/O14isD73YML8StrH/7/lRFgmg8nICZgD3bZZvjwCGxtMOD3wWNAu8cg==
 
-avsc@^5.4.19:
-  version "5.4.19"
-  resolved "https://registry.yarnpkg.com/avsc/-/avsc-5.4.19.tgz#d5608dee0586c59b24590c5a54474e49431b20c3"
-  integrity sha512-6trk8URrKU0nT2+uhHqO+8k47DYE9oehGmONJsS2RYR8aW1ldVGr4iZfVherkxC/jq0rJp1oJx+DDlQoCpfEHw==
+avsc@^5.7.4:
+  version "5.7.4"
+  resolved "https://registry.yarnpkg.com/avsc/-/avsc-5.7.4.tgz#644e5a13f7081d524aba920ae553f93cd218bf28"
+  integrity sha512-z4oo33lmnvvNRqfUe3YjDGGpqu/L2+wXBIhMtwq6oqZ+exOUAkQYM6zd2VWKF7AIlajOF8ZZuPFfryTG9iLC/w==
 
-axios@^0.19.2:
-  version "0.19.2"
-  resolved "https://registry.yarnpkg.com/axios/-/axios-0.19.2.tgz#3ea36c5d8818d0d5f8a8a97a6d36b86cdc00cb27"
-  integrity sha512-fjgm5MvRHLhx+osE2xoekY70AhARk3a6hkN+3Io1jc00jtquGvxYlKlsFUhmUET0V5te6CcZI7lcv2Ym61mjHA==
+axios@^0.27.2:
+  version "0.27.2"
+  resolved "https://registry.yarnpkg.com/axios/-/axios-0.27.2.tgz#207658cc8621606e586c85db4b41a750e756d972"
+  integrity sha512-t+yRIyySRTp/wua5xEr+z1q60QmLq8ABsS5O9Me1AsE5dfKqgnCFzwiCZZ/cGNd1lq4/7akDWMxdhVlucjmnOQ==
   dependencies:
-    follow-redirects "1.5.10"
+    follow-redirects "^1.14.9"
+    form-data "^4.0.0"
 
 balanced-match@^1.0.0:
   version "1.0.0"
@@ -734,13 +735,6 @@ debug@3.2.6:
   dependencies:
     ms "^2.1.1"
 
-debug@=3.1.0:
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/debug/-/debug-3.1.0.tgz#5bb5a0672628b64149566ba16819e61518c67261"
-  integrity sha512-OX8XqP7/1a9cqkxYw2yXss15f26NKWBpDXQd0/uK/KPqdQhxbPa994hnzjcE2VqQpDslf55723cKPUOGSmMY3g==
-  dependencies:
-    ms "2.0.0"
-
 decamelize-keys@^1.0.0:
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/decamelize-keys/-/decamelize-keys-1.1.0.tgz#d171a87933252807eb3cb61dc1c1445d078df2d9"
@@ -1116,22 +1110,20 @@ flat@^4.1.0:
   dependencies:
     is-buffer "~2.0.3"
 
-follow-redirects@1.5.10:
-  version "1.5.10"
-  resolved "https://registry.yarnpkg.com/follow-redirects/-/follow-redirects-1.5.10.tgz#7b7a9f9aea2fdff36786a94ff643ed07f4ff5e2a"
-  integrity sha512-0V5l4Cizzvqt5D44aTXbFZz+FtyXV1vrDN6qrelxtfYQKW0KO0W2T/hkE8xvGa/540LkZlkaUjO4ailYTFtHVQ==
-  dependencies:
-    debug "=3.1.0"
+follow-redirects@^1.14.9:
+  version "1.15.1"
+  resolved "https://registry.yarnpkg.com/follow-redirects/-/follow-redirects-1.15.1.tgz#0ca6a452306c9b276e4d3127483e29575e207ad5"
+  integrity sha512-yLAMQs+k0b2m7cVxpS1VKJVvoz7SS9Td1zss3XRwXj+ZDH00RJgnuLx7E44wx02kQLrdM3aOOy+FpzS7+8OizA==
 
 for-in@^1.0.2:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/for-in/-/for-in-1.0.2.tgz#81068d295a8142ec0ac726c6e2200c30fb6d5e80"
   integrity sha1-gQaNKVqBQuwKxybG4iAMMPttXoA=
 
-form-data@^3.0.0:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/form-data/-/form-data-3.0.0.tgz#31b7e39c85f1355b7139ee0c647cf0de7f83c682"
-  integrity sha512-CKMFDglpbMi6PyN+brwB9Q/GOw0eAnsrEZDgcsH5Krhz5Od/haKHAX0NmQfha2zPPz0JpWzA7GJHGSnvCRLWsg==
+form-data@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/form-data/-/form-data-4.0.0.tgz#93919daeaf361ee529584b9b31664dc12c9fa452"
+  integrity sha512-ETEklSGi5t0QMZuiXoA/Q6vcnxcLQP5vdugSpuAyi6SVGi2clPPp+xgEhuMaHC+zGgn31Kd235W35f7Hykkaww==
   dependencies:
     asynckit "^0.4.0"
     combined-stream "^1.0.8"
@@ -1931,10 +1923,10 @@ mocha@^7.1.1:
     yargs-parser "13.1.2"
     yargs-unparser "1.6.0"
 
-moment@^2.24.0:
-  version "2.24.0"
-  resolved "https://registry.yarnpkg.com/moment/-/moment-2.24.0.tgz#0d055d53f5052aa653c9f6eb68bb5d12bf5c2b5b"
-  integrity sha512-bV7f+6l2QigeBBZSM/6yTNq4P2fNpSWj/0e7jQcy87A8e7o2nAfP/34/2ky5Vw4B9S446EtIhodAzkFCcR4dQg==
+moment@^2.29.4:
+  version "2.29.4"
+  resolved "https://registry.yarnpkg.com/moment/-/moment-2.29.4.tgz#3dbe052889fe7c1b2ed966fcb3a77328964ef108"
+  integrity sha512-5LC9SOxjSc2HF6vO2CyuTDNivEdoz2IvyJJGj6X8DJ0eFyfszE0QiEd+iXmBvUP3WHxSjFH/vIsA0EN00cgr8w==
 
 ms@2.0.0:
   version "2.0.0"
@@ -2003,18 +1995,18 @@ node-environment-flags@1.0.6:
     object.getownpropertydescriptors "^2.0.3"
     semver "^5.7.0"
 
-node-test-bed-adapter@^2.0.7:
-  version "2.0.7"
-  resolved "https://registry.yarnpkg.com/node-test-bed-adapter/-/node-test-bed-adapter-2.0.7.tgz#409f95c430991bbf13368fd55f379d5a2c79e721"
-  integrity sha512-xJmFrrhCYs83DD8ymdDZAxSg0Yq8ivIG1/c3Tb4ZlSw5FU9zyJ1atba+PKhhz1Lh3jqgkiVvvLeuM7jYwZarxg==
+node-test-bed-adapter@^2.0.8:
+  version "2.2.8"
+  resolved "https://registry.yarnpkg.com/node-test-bed-adapter/-/node-test-bed-adapter-2.2.8.tgz#d497c7fb8a310a48c8730d0a5f0c6d8b082e6b96"
+  integrity sha512-ghFU2vmAqVjqqOKjDQhFLI/FxQaW/8OogehoQhKnLr2uIe1IULviWUysO6aoXQ2S/89LmKH89iF89s7GPjvOcg==
   dependencies:
-    "@types/bluebird" "^3.5.30"
-    avsc "^5.4.19"
-    axios "^0.19.2"
+    "@types/bluebird" "^3.5.36"
+    avsc "^5.7.4"
+    axios "^0.27.2"
     bluebird "^3.7.2"
-    form-data "^3.0.0"
+    form-data "^4.0.0"
     kafka-node "5.0.0"
-    test-bed-schemas "^0.3.8"
+    test-bed-schemas "^0.4.0"
     url "^0.11.0"
 
 noop-logger@^0.1.1:
@@ -2815,6 +2807,11 @@ test-bed-schemas@^0.3.8:
   version "0.3.8"
   resolved "https://registry.yarnpkg.com/test-bed-schemas/-/test-bed-schemas-0.3.8.tgz#c35eb4b6bb2ad18bc7d67c0223e0511677580add"
   integrity sha512-h3sZ8uF/K2T+yO7E+OE6gFN0htDMlQejhMBFk4lWNbAIH7VfwIxwHSVNpgdzmzkedPDWCsc6I3RGwz2TN0zdLA==
+
+test-bed-schemas@^0.4.0:
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/test-bed-schemas/-/test-bed-schemas-0.4.0.tgz#e3f7ed9287cd0a1841e519f4e9a1f3269e91b47c"
+  integrity sha512-Z8rY6QRbwTfBgt/StOVUkch/j0zPX+TXzqPxHAnXF831Rnhp6agDv3VTZ2vi01vmrUl3CrZ5zhXJiH3HrCHnsw==
 
 text-hex@1.0.x:
   version "1.0.0"
